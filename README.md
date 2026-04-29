@@ -19,5 +19,5 @@
 
 | Pin | RFID | Description |
 |:----|:----------|:------------|
-| D11 | ECHO   | Chip select |
-| D12 | TRIG   | Chip select |
+| D13 | SCL   | Chip select |
+| D14 | SDA   | Chip select |
