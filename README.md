@@ -21,3 +21,12 @@
 |:----|:----------|:------------|
 | D13 | SCL   | Chip select |
 | D14 | SDA   | Chip select |
+
+| Pin | LiDAR | Left to Right 1-6 (facing up) |
+|:----|:----------|:------------|
+| 5V | VCC   | White |
+| TX0 | RXD (Pin 2)   | Blue |
+| RX0 | TXD (Pin 3)   | green |
+| GND |    | Yellow |
+| / | /   | Black |
+| / | /   | Red |
