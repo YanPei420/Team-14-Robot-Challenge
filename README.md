@@ -27,6 +27,6 @@
 | 5V | VCC   | White |
 | TX0 | RXD (Pin 2)   | Blue |
 | RX0 | TXD (Pin 3)   | green |
-| GND |    | Yellow |
+| GND | GND  | Yellow |
 | / | /   | Black |
 | / | /   | Red |
