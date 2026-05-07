@@ -16,6 +16,11 @@ const int PIN_KILL_SWITCH = 2;
 // 红外传感器引脚
 const int PIN_IR_SENSOR = A0;
 
+// RGB LED 引脚
+const int PIN_RGB_R = 3;
+const int PIN_RGB_G = 4;
+const int PIN_RGB_B = 5;
+
 // Motoron 电机驱动器 (I2C)
 // SDA = 20, SCL = 21 (Giga R1 的默认 I2C 引脚)
 

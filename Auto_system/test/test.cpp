@@ -1,43 +1,81 @@
 #include <Arduino.h>
-#include <unity.h>
-#include "wifi_handler.h"
-#include "arduino_secrets.h"
+#include <Wire.h>
 
-void setUp(void) {
-  // set stuff up here
-}
+#define SENSOR_ADDR 0x40
 
-void tearDown(void) {
-  // clean stuff up here
-}
+#define DISTANCE_REG_HIGH 0x5E
+#define DISTANCE_REG_LOW 0x5F
 
-void test_wifi_connection_status(void) {
-  setupWiFi();
-  TEST_ASSERT_EQUAL(WL_CONNECTED, WiFi.status());
-}
-
-void test_wifi_local_ip(void) {
-  IPAddress ip = WiFi.localIP();
-  // Check that the IP is not 0.0.0.0 and not INADDR_NONE (255.255.255.255)
-  TEST_ASSERT_TRUE((uint32_t)ip != 0x00000000);
-  TEST_ASSERT_TRUE((uint32_t)ip != 0xFFFFFFFF);
-  Serial.print("Local IP: ");
-  Serial.println(ip);
-}
+#define GPIO1_pin 22
+#define ANALOG_pin A0
 
 void setup() {
-  // Wait for Serial to be ready
   Serial.begin(115200);
-  while (!Serial && millis() < 5000);
+  Wire.begin();
 
-  UNITY_BEGIN();
-  RUN_TEST(test_wifi_connection_status);
-  RUN_TEST(test_wifi_local_ip);
-  UNITY_END();
+  analogReadResolution(12); // GIGA gets 12-bit resolution
+
+  pinMode(GPIO1_pin, OUTPUT);
+  digitalWrite(GPIO1_pin, HIGH);
+
+  delay(50);
+  Serial.println("GP2Y0E03 distance sensor test START...");
+  Serial.println("--------------------------------");
 }
 
 void loop() {
-  // Functional test: allow UDP packets to be handled after unit tests finish
-  handleUDP();
+  //======================================
+  // I2C (Digital) Data
+  //======================================
+  uint8_t high_Byte = 0;
+  uint8_t low_Byte = 0;
+  float distance_i2c = -1.0;
+
+  // Read Distance 11:4
+  Wire.beginTransmission(SENSOR_ADDR);
+  Wire.write(DISTANCE_REG_HIGH);
+  if (Wire.endTransmission(false) == 0) {
+    Wire.requestFrom((uint8_t)SENSOR_ADDR, (uint8_t)1);
+    if (Wire.available()) {
+      high_Byte = Wire.read();
+    }
+  }
+
+  // Read Distance 3:0
+  Wire.beginTransmission(SENSOR_ADDR);
+  Wire.write(DISTANCE_REG_LOW);
+  if (Wire.endTransmission(false) == 0) {
+    Wire.requestFrom((uint8_t)SENSOR_ADDR, (uint8_t)1);
+    if (Wire.available()) {
+      low_Byte = Wire.read();
+    }
+  }
+
+  // Convert distance to cm
+  uint16_t raw_i2c = (high_Byte * 16) + low_Byte;
+  distance_i2c = (float)raw_i2c / 16.0 / 4.0;
+
+  //======================================
+  // Analog Data
+  //======================================
+  int raw_analog = analogRead(ANALOG_pin);
+  float voltage = (float)raw_analog * 3.3 / 4095.0;
+
+  //======================================
+  // Output
+  //======================================
+  Serial.print("I2C Distance: ");
+  // 加入 Error Judgment 拦截
+  if (distance_i2c >= 64.0) {
+    Serial.println("Out of Range (>64cm)");
+  } else {
+    Serial.print(distance_i2c);
+    Serial.println(" cm");
+  }
+
+  Serial.print("Analog Voltage: ");
+  Serial.print(voltage, 3); // 保留三位小数，方便观察动态变化
+  Serial.println(" V\n");
+
   delay(100);
 }
