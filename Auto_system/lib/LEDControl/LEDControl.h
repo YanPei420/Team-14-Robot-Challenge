@@ -4,53 +4,81 @@
 #include <Arduino.h>
 
 /**
- * @brief Class to control an RGB LED.
+ * @brief RGB LED 控制类
  * 
- * This class provides methods to set the color of an RGB LED using PWM.
+ * 提供简便的方法来控制 RGB LED 的颜色，支持共阴极和共阳极 LED。
  */
 class LEDControl {
 public:
     /**
-     * @brief Construct a new LEDControl object.
-     * 
-     * @param pinR PWM pin for Red
-     * @param pinG PWM pin for Green
-     * @param pinB PWM pin for Blue
-     * @param commonAnode Set to true if using a common anode LED (active low). Default is false (common cathode, active high).
+     * @brief 构造函数
+     * @param pinR 红色引脚
+     * @param pinG 绿色引脚
+     * @param pinB 蓝色引脚
+     * @param commonAnode 是否为共阳极 (true: 共阳, false: 共阴)
      */
     LEDControl(int pinR, int pinG, int pinB, bool commonAnode = false);
 
     /**
-     * @brief Initialize the LED pins.
+     * @brief 初始化 LED 引脚
      */
     void begin();
 
     /**
-     * @brief Set the color of the RGB LED.
-     * 
-     * @param r Red intensity (0-255)
-     * @param g Green intensity (0-255)
-     * @param b Blue intensity (0-255)
+     * @brief 设置自定义 RGB 颜色
+     * @param r 红色亮度 (0-255)
+     * @param g 绿色亮度 (0-255)
+     * @param b 蓝色亮度 (0-255)
      */
     void setColor(int r, int g, int b);
 
     /**
-     * @brief Turn off the LED.
+     * @brief 关闭所有 LED
      */
     void off();
 
-    // Preset colors
+    /**
+     * @brief 设置为红色
+     */
     void red();
+
+    /**
+     * @brief 设置为绿色
+     */
     void green();
+
+    /**
+     * @brief 设置为蓝色
+     */
     void blue();
+
+    /**
+     * @brief 设置为黄色
+     */
     void yellow();
+
+    /**
+     * @brief 设置为青色
+     */
     void cyan();
+
+    /**
+     * @brief 设置为品红色
+     */
     void magenta();
+
+    /**
+     * @brief 设置为白色
+     */
     void white();
 
 private:
     int _pinR, _pinG, _pinB;
     bool _commonAnode;
+
+    /**
+     * @brief 写入引脚亮度的私有方法 (处理共阳/共阴逻辑转换)
+     */
     void _write(int pin, int value);
 };
 

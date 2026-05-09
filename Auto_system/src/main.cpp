@@ -1,118 +1,111 @@
 #include <Arduino.h>
-#include <Wire.h>
+#include "config.h"
 
-// ---------------------------------------------------------
-// 传感器 I2C 地址与关键寄存器定义
-// ---------------------------------------------------------
-// 7-bit I2C 从机地址 (0x80 右移一位)
-#define SENSOR_ADDR 0x40 
+// 重定向 I2C 到 Wire1
+#define Wire Wire1
+#include <Motoron.h>
 
-// 距离数据寄存器
-#define DISTANCE_REG_HIGH 0x5E
-#define DISTANCE_REG_LOW  0x5F
+// 包含所有模块
+#include "MotorControl.h"
+#include "IRSensor.h"
+#include "DistanceSensor.h"
+#include "LidarSensor.h"
+#include "KillSwitch.h"
+#include "LEDControl.h"
+#include "wifi_handler.h"
+#include "ServoControl.h"
 
-// 状态控制寄存器 (用于软件强制唤醒)
-#define STATE_CTRL_REG 0xE8
-
-// ---------------------------------------------------------
-// 硬件引脚定义
-// ---------------------------------------------------------
-#define GPIO1_pin 22
-#define ANALOG_pin A0
+// ===== 全局对象实例化 =====
+MotorControl motors;
+IRSensor irSensor(PIN_IR_SENSOR);
+DistanceSensor distSensor(ADDR_DIST_SENSOR, PIN_DIST_SENSOR_GPIO1, PIN_DIST_SENSOR_ANALOG);
+LidarSensor lidarSensor;
+KillSwitch killSwitch(PIN_KILL_SWITCH);
+LEDControl statusLED(PIN_RGB_R, PIN_RGB_G, PIN_RGB_B, LED_COMMON_ANODE);
+ServoControl headServo(PIN_SERVO);
 
 void setup() {
-  Serial.begin(115200);
-  Wire.begin();
+    Serial.begin(115200);
+    Wire.begin();
 
-  // Arduino Giga 支持 12-bit ADC 解析度 (0-4095)
-  analogReadResolution(12); 
+    Serial.println("Robot System Starting...");
 
-  // ==========================================
-  // 1. 硬件级唤醒
-  // ==========================================
-  // 如果你已经把传感器的 GPIO1 直接插到了 3.3V 上，这两行其实可以不写。
-  // 但保留在这里可以兼容你插回 Pin 22 的情况。
-  pinMode(GPIO1_pin, OUTPUT);
-  digitalWrite(GPIO1_pin, HIGH);
+    // 初始化所有模块
+    statusLED.begin();
+    statusLED.blue(); // 初始状态：蓝色（启动中）
 
-  delay(50); // 给硬件一点上电反应时间
+    motors.begin();
+    irSensor.begin();
+    distSensor.begin();
+    lidarSensor.begin();
+    killSwitch.begin();
+    headServo.begin();
 
-  // ==========================================
-  // 2. 软件级急救：I2C 强制唤醒 (破除待机锁死)
-  // ==========================================
-  Wire.beginTransmission(SENSOR_ADDR);
-  Wire.write(STATE_CTRL_REG); // 指向 Active/Stand-by 控制寄存器
-  Wire.write(0x00);           // 写入 0x00 强制进入 Active (工作) 状态
-  uint8_t error = Wire.endTransmission();
-  
-  if (error == 0) {
-    Serial.println("Force Wake-up Command Sent Successfully!");
-  } else {
-    Serial.println("Warning: I2C Communication Error during Wake-up!");
-  }
+    // 舵机归中
+    headServo.setAngle(90);
 
-  // 给传感器一点点时间点亮红外 LED 并进行内部校准
-  delay(100); 
+    // 初始化 WiFi
+    setupWiFi();
 
-  Serial.println("GP2Y0E03 Ultimate Test START...");
-  Serial.println("--------------------------------");
+    statusLED.green(); // 就绪状态：绿色
+    Serial.println("System Ready!");
 }
 
 void loop() {
-  // ======================================
-  // 1. 读取 I2C (Digital) 距离数据
-  // ======================================
-  uint8_t high_Byte = 0;
-  uint8_t low_Byte = 0;
-  float distance_i2c = -1.0;
+    // 1. 处理网络通信
+    handleUDP();
 
-  // 读取 Distance[11:4] (高位)
-  Wire.beginTransmission(SENSOR_ADDR);
-  Wire.write(DISTANCE_REG_HIGH);
-  if (Wire.endTransmission(false) == 0) {
-    Wire.requestFrom((uint8_t)SENSOR_ADDR, (uint8_t)1);
-    if (Wire.available()) {
-      high_Byte = Wire.read();
+    // 2. 安全检查：紧急停止
+    if (killSwitch.isKilled()) {
+        motors.stop();
+        statusLED.red();
+        Serial.println("CRITICAL: Kill switch triggered!");
+        while (killSwitch.isKilled()) {
+            delay(100);
+        }
+        statusLED.green();
     }
-  }
 
-  // 读取 Distance[3:0] (低位)
-  Wire.beginTransmission(SENSOR_ADDR);
-  Wire.write(DISTANCE_REG_LOW);
-  if (Wire.endTransmission(false) == 0) {
-    Wire.requestFrom((uint8_t)SENSOR_ADDR, (uint8_t)1);
-    if (Wire.available()) {
-      low_Byte = Wire.read();
+    // 3. 传感器数据读取
+    lidarSensor.update(); // 持续从串口读取最新数据
+
+    int irVal = irSensor.readDistance();
+    float distI2C = distSensor.readDistanceI2C();
+    int lidarDist = lidarSensor.getDistance();
+
+    // 4. 避障逻辑
+    bool obstacleDetected = false;
+
+    // 检查红外传感器
+    if (irVal > THRESHOLD_IR) {
+        obstacleDetected = true;
+        Serial.println("Obstacle: IR Triggered");
     }
-  }
 
-  // 将高低位组合并换算为厘米 (cm)
-  uint16_t raw_i2c = (high_Byte * 16) + low_Byte;
-  distance_i2c = (float)raw_i2c / 16.0 / 4.0;
+    // 检查 I2C 距离传感器
+    if (distI2C < THRESHOLD_LIDAR) { 
+        obstacleDetected = true;
+        Serial.print("Obstacle: I2C Dist (");
+        Serial.print(distI2C);
+        Serial.println(" cm)");
+    }
 
-  // ======================================
-  // 2. 读取 Analog (模拟) 电压数据
-  // ======================================
-  int raw_analog = analogRead(ANALOG_pin);
-  // 基于 3.3V 参考电压和 12-bit 解析度 (4095) 计算实际电压
-  float voltage = (float)raw_analog * 3.3 / 4095.0;
+    // 检查激光雷达 (仅在信号可靠时)
+    if (lidarSensor.isReliable() && lidarDist > 0 && lidarDist < THRESHOLD_LIDAR) {
+        obstacleDetected = true;
+        Serial.print("Obstacle: Lidar Dist (");
+        Serial.print(lidarDist);
+        Serial.println(" cm)");
+    }
 
-  // ======================================
-  // 3. 串口数据输出与错误研判
-  // ======================================
-  Serial.print("[I2C] Distance: ");
-  // 加入 Error Judgment 拦截：当读数为 64cm 时，说明未测到有效信号
-  if (distance_i2c >= 64.0) {
-    Serial.print("Out of Range (>64cm)    ");
-  } else {
-    Serial.print(distance_i2c);
-    Serial.print(" cm                 ");
-  }
+    // 5. 运动执行
+    if (obstacleDetected) {
+        motors.stop();
+        statusLED.yellow();
+    } else {
+        motors.moveForward(SPEED_DEFAULT);
+        statusLED.green();
+    }
 
-  Serial.print("| [Analog] Voltage: ");
-  Serial.print(voltage, 3); // 保留三位小数，方便观察微小跳动
-  Serial.println(" V");
-
-  // 延时 100 毫秒，每秒输出 10 次
-  delay(100);
+    delay(20); 
 }

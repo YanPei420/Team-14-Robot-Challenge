@@ -5,13 +5,21 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 
-// Function to initialize WiFi connection
+/**
+ * @brief 初始化 WiFi 连接并启动 UDP 监听
+ */
 void setupWiFi();
 
-// Function to handle UDP communication
+/**
+ * @brief 处理 UDP 消息的接收与回复
+ * 
+ * 应在 loop() 中持续调用。
+ */
 void handleUDP();
 
-// Print WiFi status to Serial
+/**
+ * @brief 将当前 WiFi 连接状态打印到串口
+ */
 void printWifiStatus();
 
 #endif // WIFI_HANDLER_H

@@ -2,63 +2,62 @@
 #include "arduino_secrets.h"
 #include "config.h"
 
-// WiFi网络信息
+// WiFi 网络信息
 char ssid[] = SECRET_SSID;        
 char pass[] = SECRET_PASS;    
 int status = WL_IDLE_STATUS;
 
-// UDP通信缓冲区
+// UDP 通信缓冲区
 char packetBuffer[256]; 
 char ReplyBuffer[] = "acknowledged";       
 
-// UDP对象
+// UDP 对象实例
 WiFiUDP Udp;
 
-// 初始化WiFi连接和UDP监听
 void setupWiFi() {
-  // 检查WiFi模块
+  // 检查 WiFi 模块是否存在
   if (WiFi.status() == WL_NO_MODULE) {
-    Serial.println("Communication with WiFi module failed!");
+    Serial.println("与 WiFi 模块通信失败！");
     while (true);
   }
 
-  // 尝试连接到WiFi网络
+  // 循环尝试连接 WiFi
   while (status != WL_CONNECTED) {
-    Serial.print("Attempting to connect to SSID: ");
+    Serial.print("正在尝试连接 SSID: ");
     Serial.println(ssid);
     status = WiFi.begin(ssid, pass);
-    // 等待10秒连接:
+    // 等待 10 秒进行连接:
     delay(10000);
   }
 
-  Serial.println("Connected to WiFi");
+  Serial.println("WiFi 已连接");
   printWifiStatus();
 
-  Serial.println("\nStarting UDP listener...");
-  Udp.begin(UDP_LOCAL_PORT);
-  Serial.print("Listening on port ");
-  Serial.println(UDP_LOCAL_PORT);
+  // 启动 UDP 监听
+  Serial.println("\n正在启动 UDP 监听...");
+  Udp.begin(PORT_UDP);
+  Serial.print("监听端口: ");
+  Serial.println(PORT_UDP);
 }
 
-// 处理UDP消息接收和回复
 void handleUDP() {
-  // 如果有数据可用,读取数据包
+  // 检查是否有数据包可用
   int packetSize = Udp.parsePacket();
   if (packetSize) {
-    Serial.print("Received packet of size ");
+    Serial.print("收到数据包，大小: ");
     Serial.println(packetSize);
-    Serial.print("From ");
+    Serial.print("来自 IP: ");
     IPAddress remoteIp = Udp.remoteIP();
     Serial.print(remoteIp);
-    Serial.print(", port ");
+    Serial.print(", 端口: ");
     Serial.println(Udp.remotePort());
 
-    // 将数据包读入缓冲区
+    // 将内容读入缓冲区
     int len = Udp.read(packetBuffer, 255);
     if (len > 0) {
-      packetBuffer[len] = 0;
+      packetBuffer[len] = 0; // 添加字符串结束符
     }
-    Serial.println("Contents:");
+    Serial.println("内容:");
     Serial.println(packetBuffer);
 
     // 向发送者回复确认消息
@@ -68,20 +67,19 @@ void handleUDP() {
   }
 }
 
-// 打印WiFi连接状态信息
 void printWifiStatus() {
-  // 打印连接的WiFi网络SSID:
+  // 打印 SSID
   Serial.print("SSID: ");
   Serial.println(WiFi.SSID());
 
-  // 打印开发板IP地址:
+  // 打印本地 IP 地址
   IPAddress ip = WiFi.localIP();
-  Serial.print("IP Address: ");
+  Serial.print("IP 地址: ");
   Serial.println(ip);
 
-  // 打印信号强度:
+  // 打印信号强度
   long rssi = WiFi.RSSI();
-  Serial.print("Signal strength (RSSI):");
+  Serial.print("信号强度 (RSSI): ");
   Serial.print(rssi);
   Serial.println(" dBm");
 }
