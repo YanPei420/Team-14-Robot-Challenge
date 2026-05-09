@@ -26,11 +26,16 @@ constexpr int PIN_ENCODER_RR_B = 51;
 
 // --- 舵机与控制 (Servo & Control) ---
 constexpr int PIN_SERVO = 9;
-constexpr int PIN_KILL_SWITCH = 2;
+constexpr int PIN_KILL_SWITCH = 2;   // 物理急停引脚
+constexpr int PIN_TAPPING_BUTTON = 6; // 拍打/复活按钮引脚 (Checklist 1.4)
 
 // --- 传感器 (Sensors) ---
 // 红外传感器 (IR Sensor)
 constexpr int PIN_IR_SENSOR = A1;
+
+// 反射式巡线传感器阵列 (Reflectance Sensor Array)
+constexpr int NUM_REFLECTANCE_SENSORS = 5;
+const int PINS_REFLECTANCE[NUM_REFLECTANCE_SENSORS] = {A2, A3, A4, A5, A6};
 
 // GP2Y0E03 距离传感器 (Distance Sensor)
 constexpr int PIN_DIST_SENSOR_GPIO1 = 26; 

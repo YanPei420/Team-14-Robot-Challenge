@@ -1,21 +1,51 @@
 #include "LEDControl.h"
 
 LEDControl::LEDControl(int pinR, int pinG, int pinB, bool commonAnode)
-    : _pinR(pinR), _pinG(pinG), _pinB(pinB), _commonAnode(commonAnode) {}
+    : _pinR(pinR), _pinG(pinG), _pinB(pinB), _commonAnode(commonAnode),
+      _isBlinking(false), _blinkInterval(500), _lastBlinkTime(0), _blinkState(false) {}
 
 void LEDControl::begin() {
     // 设置所有引脚为输出
     pinMode(_pinR, OUTPUT);
     pinMode(_pinG, OUTPUT);
     pinMode(_pinB, OUTPUT);
+    _isBlinking = false;
     // 初始关闭
     off();
 }
 
 void LEDControl::setColor(int r, int g, int b) {
+    stopBlinking();
     _write(_pinR, r);
     _write(_pinG, g);
     _write(_pinB, b);
+}
+
+void LEDControl::update() {
+    if (!_isBlinking) return;
+
+    if (millis() - _lastBlinkTime >= _blinkInterval) {
+        _lastBlinkTime = millis();
+        _blinkState = !_blinkState;
+        if (_blinkState) {
+            _write(_pinR, 255);
+            _write(_pinG, 0);
+            _write(_pinB, 0);
+        } else {
+            _write(_pinR, 0);
+            _write(_pinG, 0);
+            _write(_pinB, 0);
+        }
+    }
+}
+
+void LEDControl::blinkRed(unsigned long interval) {
+    _isBlinking = true;
+    _blinkInterval = interval;
+}
+
+void LEDControl::stopBlinking() {
+    _isBlinking = false;
 }
 
 void LEDControl::off()     { setColor(0, 0, 0); }

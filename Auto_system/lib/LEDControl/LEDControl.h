@@ -68,13 +68,30 @@ public:
     void magenta();
 
     /**
-     * @brief 设置为白色
+     * @brief 更新 LED 状态 (用于处理闪烁等异步逻辑)
      */
-    void white();
+    void update();
+
+    /**
+     * @brief 开始红灯闪烁
+     * @param interval 闪烁间隔 (ms)
+     */
+    void blinkRed(unsigned long interval);
+
+    /**
+     * @brief 停止闪烁
+     */
+    void stopBlinking();
 
 private:
     int _pinR, _pinG, _pinB;
     bool _commonAnode;
+    
+    // 闪烁逻辑相关
+    bool _isBlinking;
+    unsigned long _blinkInterval;
+    unsigned long _lastBlinkTime;
+    bool _blinkState;
 
     /**
      * @brief 写入引脚亮度的私有方法 (处理共阳/共阴逻辑转换)
