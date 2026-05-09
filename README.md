@@ -30,3 +30,14 @@
 | GND | GND  | Yellow |
 | / | /   | Black |
 | / | /   | Red |
+
+| Pin | Revival Button | Description |
+|:----|:----------|:------------|
+| D17 | VCC   | Red |
+| GND | GND   | Black |
+
+| Pin | LED | Description |
+|:----|:----------|:------------|
+| D18 | Red   | Red |
+| D19 | Green   | Red |
+| GND | GND   | Black |
