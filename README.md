@@ -41,3 +41,8 @@
 | D18 | Red   | Red |
 | D19 | Green   | Red |
 | GND | GND   | Black |
+
+| Pin | Motor | Description |
+|:----|:----------|:------------|
+
+Please edit the motor pinnouts
