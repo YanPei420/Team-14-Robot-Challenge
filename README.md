@@ -2,15 +2,15 @@
 
 | Pin | IR Sensor | Description |
 |:----|:----------|:------------|
-| D2 | IR 1   | Chip select |
-| D3 | IR 2   | Chip select |
-| D4 | IR 3   | Chip select |
-| D5 | IR 4   | Chip select |
-| D6 | IR 5   | Chip select |
-| D7 | IR 6   | Chip select |
-| D8 | IR 7   | Chip select |
-| D9 | IR 8   | Chip select |
-| D10 | IR 9   | Chip select |
+| D45 | IR 1   | Chip select |
+| D46 | IR 2   | Chip select |
+| D47 | IR 3   | Chip select |
+| D48 | IR 4   | Chip select |
+| D49 | IR 5   | Chip select |
+| D50 | IR 6   | Chip select |
+| D51 | IR 7   | Chip select |
+| D52 | IR 8   | Chip select |
+| D53 | IR 9   | Chip select |
 
 | Pin | Ultrasonic| Description |
 |:----|:----------|:------------|
@@ -44,5 +44,13 @@
 
 | Pin | Motor | Description |
 |:----|:----------|:------------|
+| D2 | | |
+| D3 | | |
+| D4 | | |
+| D5 | | |
+| D6 | | |
+| D7 | | |
+| D8 | | |
+| D9 | | |
 
 Please edit the motor pinnouts
