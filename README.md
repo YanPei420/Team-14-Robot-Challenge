@@ -25,8 +25,8 @@
 | Pin | LiDAR | Left to Right 1-6 (facing up) |
 |:----|:----------|:------------|
 | 5V | VCC   | White |
-| TX0 | RXD (Pin 2)   | Blue |
-| RX0 | TXD (Pin 3)   | green |
+| TX1 | RXD (Pin 2)   | Blue |
+| RX1 | TXD (Pin 3)   | green |
 | GND | GND  | Yellow |
 | / | /   | Black |
 | / | /   | Red |
@@ -38,8 +38,8 @@
 
 | Pin | LED | Description |
 |:----|:----------|:------------|
-| D18 | Red   | Red |
-| D19 | Green   | Red |
+| D0 | Red   | Red |
+| D1 | Green   | Red |
 | GND | GND   | Black |
 
 | Pin | Motor | Description |
