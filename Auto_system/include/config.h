@@ -16,33 +16,6 @@
 // 引脚定义 (Pin Definitions)
 // =============================================================================
 
-// Motots-----------------------------------------------------------------------
-
-// MOTORON I2C ADDRESSES
-#define MC1_ADDRESS 16
-#define MC2_ADDRESS 17
-
-// MOTOR CHANNELS
-// Front Left
-#define FL_CHANNEL 1
-// Front Right
-#define FR_CHANNEL 3
-// Rear Left
-#define RL_CHANNEL 3
-// Rear Right
-#define RR_CHANNEL 1
-// ======================================================
-// MOTOR DIRECTIONS
-// true  = inverted
-// false = normal
-// ======================================================
-#define FL_INVERTED false
-#define FR_INVERTED true
-#define RL_INVERTED true
-#define RR_INVERTED false
-// -----------------------------------------------------------------------------
-
-
 // KILL SWITCH------------------------------------------------------------------
 #define KILL_SWITCH_PIN 22
 // -----------------------------------------------------------------------------
@@ -60,7 +33,6 @@
 // =============================================================================
 // I2C 设备地址 (I2C Addresses)
 // =============================================================================
-
 
 
 #endif // CONFIG_H

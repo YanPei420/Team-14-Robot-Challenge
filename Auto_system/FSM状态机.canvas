@@ -1,7 +1,0 @@
-{
-	"nodes":[
-		{"id":"73f03d1bc6332f96","type":"text","text":"","x":-340,"y":140,"width":250,"height":60},
-		{"id":"e96b2bb1df1c5d72","type":"text","text":"**Robot_Stop**\n- Kill swith\n","x":-90,"y":-120,"width":180,"height":104}
-	],
-	"edges":[]
-}
