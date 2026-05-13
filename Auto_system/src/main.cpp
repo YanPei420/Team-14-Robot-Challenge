@@ -1,61 +1,90 @@
 #include <Arduino.h>
 #include "config.h"
+#include <KillSwitch.h>
 
-// 重定向 I2C 到 Wire1
-#define Wire Wire1
-#include <Motoron.h>
+// ======================================================
+// KILL SWITCH
+// ======================================================
 
-// 包含所有模块
-#include "MotorControl.h"
-#include "IRSensor.h"
-#include "DistanceSensor.h"
-#include "LidarSensor.h"
-#include "KillSwitch.h"
-#include "LEDControl.h"
-#include "wifi_handler.h"
-#include "ServoControl.h"
-#include "fsm/StateMachine.h"
+KillSwitch killSwitch(
+    KILL_SWITCH_PIN
+);
 
-// ===== 全局对象实例化 =====
-MotorControl motors;
-IRSensor irSensor(PIN_IR_SENSOR);
-DistanceSensor distSensor(ADDR_DIST_SENSOR, PIN_DIST_SENSOR_GPIO1, PIN_DIST_SENSOR_ANALOG);
-LidarSensor lidarSensor;
-KillSwitch killSwitch(PIN_KILL_SWITCH);
-LEDControl statusLED(PIN_RGB_R, PIN_RGB_G, PIN_RGB_B, LED_COMMON_ANODE);
-ServoControl headServo(PIN_SERVO);
+// ======================================================
+// LED FLASH CONTROL
+// ======================================================
 
-void setup() {
+unsigned long lastFlashTime = 0;
+bool redLedState = false;
+
+const unsigned long RED_FLASH_INTERVAL_MS = 300;
+
+void setup()
+{
     Serial.begin(115200);
-    Wire.begin();
 
-    Serial.println("Robot System Starting...");
-
-    // 初始化所有硬件模块
-    statusLED.begin();
-    motors.begin();
-    irSensor.begin();
-    distSensor.begin();
-    lidarSensor.begin();
     killSwitch.begin();
-    headServo.begin();
 
-    // 舵机归中
-    headServo.setAngle(90);
+    pinMode(BUTTON_PIN, INPUT_PULLUP);
 
-    // 初始化 WiFi
-    setupWiFi();
+    pinMode(RED_LED_PIN, OUTPUT);
+    pinMode(GREEN_LED_PIN, OUTPUT);
 
-    // 初始化状态机
-    setupFSM();
+    digitalWrite(RED_LED_PIN, HIGH);
+    digitalWrite(GREEN_LED_PIN, LOW);
 
-    Serial.println("System Ready!");
+    Serial.println("KILL SWITCH + LED SYSTEM READY");
 }
 
-void loop() {
-    // 运行状态机逻辑 (包含通信、传感器读取和动作执行)
-    updateFSM();
-    
-    // 保持主循环轻量
-    delay(10);
+void loop()
+{
+    killSwitch.update();
+
+    // ======================================================
+    // EMERGENCY STATE
+    // ======================================================
+
+    if (killSwitch.isTriggered())
+    {
+        Serial.println("EMERGENCY STOP");
+
+        digitalWrite(GREEN_LED_PIN, LOW);
+
+        if (millis() - lastFlashTime >= RED_FLASH_INTERVAL_MS)
+        {
+            lastFlashTime = millis();
+            redLedState = !redLedState;
+            digitalWrite(RED_LED_PIN, redLedState);
+        }
+
+        return;
+    }
+
+    // ======================================================
+    // BUTTON STATE
+    // ======================================================
+
+    if (digitalRead(BUTTON_PIN) == LOW)
+    {
+        Serial.println("BUTTON PRESSED");
+
+        digitalWrite(RED_LED_PIN, LOW);
+        digitalWrite(GREEN_LED_PIN, HIGH);
+
+        delay(3000);
+        return;
+    }
+
+    // ======================================================
+    // NORMAL STATE
+    // ======================================================
+
+    Serial.println("SYSTEM OK");
+
+    redLedState = true;
+
+    digitalWrite(RED_LED_PIN, HIGH);
+    digitalWrite(GREEN_LED_PIN, LOW);
+
+    delay(100);
 }
