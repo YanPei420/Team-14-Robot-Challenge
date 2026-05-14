@@ -31,4 +31,7 @@ void loop()
 
     Robot.stop_all();
     delay(1000);
+
+    Robot.forward(400);
+    delay(1000);
 }

@@ -2,7 +2,6 @@
 #include <Arduino.h>
 #define Wire Wire1
 #include <Motoron.h>
-#include "config.h"
 
 class MotoronDrive
 {

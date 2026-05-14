@@ -8,9 +8,9 @@
 // Wi-Fi 配置 (Wi-Fi Configuration)
 // =============================================================================
 
-#define SECRET_SSID "Xiao Mi 15 Ultra"
-#define SECRET_PASS "00000000"
-#define UDP_PORT 4210
+#define WIFI_SSID "Xiao Mi 15 Ultra"
+#define WIFI_PASSWORD "00000000"
+#define WIFI_UDP_PORT 4210
 
 // =============================================================================
 // 引脚定义 (Pin Definitions)

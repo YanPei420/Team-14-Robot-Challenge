@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "config.h"
 #include <KillSwitch.h>
+#include <WiFiHandler.h>
 
 // ======================================================
 // KILL SWITCH
@@ -8,6 +9,12 @@
 
 KillSwitch killSwitch(
     KILL_SWITCH_PIN
+);
+
+WiFiHandler WiFi(
+    WIFI_SSID,
+    WIFI_PASSWORD,
+    WIFI_UDP_PORT
 );
 
 // ======================================================
@@ -24,6 +31,7 @@ void setup()
     Serial.begin(115200);
 
     killSwitch.begin();
+    WiFi.begin();
 
     pinMode(BUTTON_PIN, INPUT_PULLUP);
 
@@ -33,7 +41,13 @@ void setup()
     digitalWrite(RED_LED_PIN, HIGH);
     digitalWrite(GREEN_LED_PIN, LOW);
 
-    Serial.println("KILL SWITCH + LED SYSTEM READY");
+    while (!Serial)
+    {
+        ;
+    }
+    Serial.println("SYSTEM READY");
+    Serial.print("IP ADDRESS: ");
+    Serial.println(WiFi.getIP());
 }
 
 void loop()
@@ -44,7 +58,7 @@ void loop()
     // EMERGENCY STATE
     // ======================================================
 
-    if (killSwitch.isTriggered())
+    if (killSwitch.isTriggered()||WiFi.isStopTriggered())
     {
         Serial.println("EMERGENCY STOP");
 
