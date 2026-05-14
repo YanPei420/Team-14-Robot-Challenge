@@ -1,6 +1,5 @@
 const uint8_t SensorCount = 9;
-const uint8_t sensorPins[] = {2 ,3, 4, 5, 6, 7, 8, 9, 10};
-//const uint8_t emitterPin = 11;
+const uint8_t sensorPins[] = {45 ,46, 47, 48, 49, 50, 51, 52, 53};
 
 void setup() {
   delay(5000);
@@ -8,12 +7,8 @@ void setup() {
   Serial.begin(9600);
   Serial.println("SYSTEM BOOT: Library-Bypass Diagnostic Started");
 
-  // Turn on the IR LEDs manually
-  // pinMode(emitterPin, OUTPUT);
-  // digitalWrite(emitterPin, HIGH); 
-
   Serial.println("Emitters ON. Reading pins directly. Wave white paper.");
-  Serial.println("P3\tP4\tP5\tP6\tP7\tP8\tP9\tP10\tP11");
+  Serial.println("P45\tP46\tP47\tP48\tP49\tP50\tP51\tP52\tP53");
   Serial.println("-------------------------------------------------------------------------");
 }
 
