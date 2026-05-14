@@ -61,7 +61,7 @@ void updateLiDAR() {
   while (Serial1.available() >= 9) {
 
     if (Serial1.read() != 0x59) {
-      continue;  =
+      continue;  
     }
     if (Serial1.peek() != 0x59) {
       continue; 
