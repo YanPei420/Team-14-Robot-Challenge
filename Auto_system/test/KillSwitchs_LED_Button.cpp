@@ -4,14 +4,14 @@
 #include <WiFiHandler.h>
 
 // ======================================================
-// KILL SWITCH
+// KILL SWITCHS
 // ======================================================
 
 KillSwitch killSwitch(
     KILL_SWITCH_PIN
 );
 
-WiFiHandler WiFi(
+WiFiHandler wifiHandler(
     WIFI_SSID,
     WIFI_PASSWORD,
     WIFI_UDP_PORT
@@ -31,7 +31,7 @@ void setup()
     Serial.begin(115200);
 
     killSwitch.begin();
-    WiFi.begin();
+    wifiHandler.begin();
 
     pinMode(BUTTON_PIN, INPUT_PULLUP);
 
@@ -45,20 +45,23 @@ void setup()
     {
         ;
     }
+
+
     Serial.println("SYSTEM READY");
     Serial.print("IP ADDRESS: ");
-    Serial.println(WiFi.getIP());
+    Serial.println(wifiHandler.getIP());
 }
 
 void loop()
 {
     killSwitch.update();
+    wifiHandler.update();
 
     // ======================================================
     // EMERGENCY STATE
     // ======================================================
 
-    if (killSwitch.isTriggered()||WiFi.isStopTriggered())
+    if (killSwitch.isTriggered() || wifiHandler.isStopTriggered())
     {
         Serial.println("EMERGENCY STOP");
 

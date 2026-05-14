@@ -34,5 +34,7 @@
 // I2C 设备地址 (I2C Addresses)
 // =============================================================================
 
+#define SENSOR_I2C Wire1
+#define DIST_SENSOR_ADDR 0x40
 
 #endif // CONFIG_H
