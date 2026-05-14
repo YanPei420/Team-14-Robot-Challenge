@@ -1,24 +1,19 @@
 #include <Wire.h>
 #include "MFRC522_I2C.h"
 
-
-// ---------------- RFID (MFRC522 over I2C) ----------------
 MFRC522_I2C rfid(0x28, 255);
 
-// ---------------- IR sensor array ----------------
 const uint8_t SensorCount = 9;
 const uint8_t sensorPins[] = {45, 46, 47, 48, 49, 50, 51, 52, 53};
-uint16_t sensorValues[SensorCount];  // global: accessible to other functions if needed
+uint16_t sensorValues[SensorCount];  
 
-// ---------------- LiDAR latest reading (updated continuously) ----------------
-int  lidarDist = 0;       // most recent valid distance in cm
-int  lidarAmp  = 0;       // most recent signal amplitude
-bool lidarValid = false;  // true if a valid frame has been received
+int  lidarDist = 0;      
+int  lidarAmp  = 0;       
+bool lidarValid = false;  
 
-// ---------------- Non-blocking timing ----------------
-// Both IR and LiDAR PRINT at this same interval so their output rates match
+// Both IR and LiDAR PRINT at this same interval
 unsigned long lastPrint = 0;
-const unsigned long PRINT_INTERVAL = 100;   // ms between prints (10 Hz for both)
+const unsigned long PRINT_INTERVAL = 100; 
 
 void setup() {
   Serial.begin(115200);
@@ -28,13 +23,12 @@ void setup() {
   Wire.begin();
   rfid.PCD_Init();
 
-  // LiDAR init (Serial1 = pin 18 TX / pin 19 RX on GIGA R1)
   Serial1.begin(115200);
 
   Serial.println("=== SYSTEM BOOT ===");
   Serial.println("TF-Luna | IR Array | RFID Reader - all systems initialised");
   Serial.println("Hold an RFID card near the reader...");
-  Serial.println("---------------------------------------------------");
+  Serial.println("-------------------");
 }
 
 void loop() {
@@ -44,7 +38,7 @@ void loop() {
   printSensors();  // prints BOTH at the same fixed interval
 }
 
-// ---------------- RFID ----------------
+// RFID 
 void handleRFID() {
   // Non-blocking: just return if no new card
   if (!rfid.PICC_IsNewCardPresent() || !rfid.PICC_ReadCardSerial()) {
@@ -62,32 +56,27 @@ void handleRFID() {
   rfid.PICC_HaltA();
 }
 
-// ---------------- LiDAR (TF-Luna) ----------------
-// Drains ALL available frames every loop, keeping only the latest reading.
-// This prevents the serial buffer from overflowing and keeps data fresh.
+// LiDAR
 void updateLiDAR() {
-  // Process every complete frame currently in the buffer
   while (Serial1.available() >= 9) {
-    // Sync to frame header: discard bytes until we see 0x59 0x59
+
     if (Serial1.read() != 0x59) {
-      continue;  // not aligned, drop this byte and keep scanning
+      continue;  =
     }
     if (Serial1.peek() != 0x59) {
-      continue;  // single 0x59, not a real header
+      continue; 
     }
-    Serial1.read();  // consume the second 0x59
+    Serial1.read(); 
 
     uint8_t raw[7];
-    Serial1.readBytes(raw, 7);  // remaining 7 bytes of the frame
+    Serial1.readBytes(raw, 7); 
 
-    // Verify checksum: low 8 bits of sum of first 8 bytes
     uint8_t checksum = 0x59 + 0x59;
     for (int i = 0; i < 6; i++) checksum += raw[i];
     if (checksum != raw[6]) {
-      continue;  // corrupted frame, skip and keep scanning
+      continue; 
     }
 
-    // Valid frame - update the latest reading
     lidarDist  = raw[0] + raw[1] * 256;
     lidarAmp   = raw[2] + raw[3] * 256;
     lidarValid = true;
