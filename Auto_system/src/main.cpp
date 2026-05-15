@@ -1,107 +1,51 @@
 #include <Arduino.h>
-#include "config.h"
-#include <KillSwitch.h>
-#include <WiFiHandler.h>
 
-// ======================================================
-// KILL SWITCHS
-// ======================================================
+#include "MotorConfig.h"
+#include "MotoronDrive.h"
 
-KillSwitch killSwitch(
-    KILL_SWITCH_PIN
-);
-
-WiFiHandler wifiHandler(
-    WIFI_SSID,
-    WIFI_PASSWORD,
-    WIFI_UDP_PORT
-);
-
-// ======================================================
-// LED FLASH CONTROL
-// ======================================================
-
-unsigned long lastFlashTime = 0;
-bool redLedState = false;
-
-const unsigned long RED_FLASH_INTERVAL_MS = 300;
+MotoronDrive Robot(MOTORON_ADDR_FRONT, MOTORON_ADDR_REAR);
 
 void setup()
 {
     Serial.begin(115200);
-
-    killSwitch.begin();
-    wifiHandler.begin();
-
-    pinMode(BUTTON_PIN, INPUT_PULLUP);
-
-    pinMode(RED_LED_PIN, OUTPUT);
-    pinMode(GREEN_LED_PIN, OUTPUT);
-
-    digitalWrite(RED_LED_PIN, HIGH);
-    digitalWrite(GREEN_LED_PIN, LOW);
 
     while (!Serial)
     {
         ;
     }
 
+    Robot.begin();
 
-    Serial.println("SYSTEM READY");
-    Serial.print("IP ADDRESS: ");
-    Serial.println(wifiHandler.getIP());
+    Serial.println("FORWARD SPEED TEST");
 }
 
 void loop()
 {
-    killSwitch.update();
-    wifiHandler.update();
-
     // ======================================================
-    // EMERGENCY STATE
+    // SPEED 100
     // ======================================================
 
-    if (killSwitch.isTriggered() || wifiHandler.isStopTriggered())
-    {
-        Serial.println("EMERGENCY STOP");
+    Serial.println("FORWARD 100");
 
-        digitalWrite(GREEN_LED_PIN, LOW);
+    Robot.forward(100);
 
-        if (millis() - lastFlashTime >= RED_FLASH_INTERVAL_MS)
-        {
-            lastFlashTime = millis();
-            redLedState = !redLedState;
-            digitalWrite(RED_LED_PIN, redLedState);
-        }
+    delay(3000);
 
-        return;
-    }
+    Robot.stop_all();
+
+    delay(1000);
 
     // ======================================================
-    // BUTTON STATE
+    // SPEED 500
     // ======================================================
 
-    if (digitalRead(BUTTON_PIN) == LOW)
-    {
-        Serial.println("BUTTON PRESSED");
+    Serial.println("FORWARD 500");
 
-        digitalWrite(RED_LED_PIN, LOW);
-        digitalWrite(GREEN_LED_PIN, HIGH);
+    Robot.forward(500);
 
-        delay(3000);
-        return;
-    }
+    delay(3000);
 
-    // ======================================================
-    // NORMAL STATE
-    // ======================================================
+    Robot.stop_all();
 
-    Serial.println("SYSTEM OK");
-
-    redLedState = true;
-
-    digitalWrite(RED_LED_PIN, HIGH);
-    digitalWrite(GREEN_LED_PIN, LOW);
-
-    delay(100);
+    delay(2000);
 }

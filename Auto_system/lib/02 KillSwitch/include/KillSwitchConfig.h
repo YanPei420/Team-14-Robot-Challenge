@@ -5,6 +5,8 @@
 // SWITCH LOGIC
 // ======================================================
 
+#define KILL_SWITCH_PIN 22
+
 // HIGH = emergency active
 // LOW  = normal
 

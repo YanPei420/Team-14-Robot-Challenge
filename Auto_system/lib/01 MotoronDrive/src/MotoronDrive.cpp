@@ -1,9 +1,17 @@
 #include "MotoronDrive.h"
+
+#include "MotoronChassis.h"
 #include "MotorConfig.h"
 
 MotoronDrive::MotoronDrive(uint8_t Front_Board, uint8_t Rear_Board)
-    : front_(Front_Board), rear_(Rear_Board)
+    : front_(Front_Board),
+      rear_(Rear_Board)
 {
+    maxSpeed_ = MOTOR_MAX_SPEED;
+    currentFrontLeft_ = 0;
+    currentFrontRight_ = 0;
+    currentRearLeft_ = 0;
+    currentRearRight_ = 0;
 }
 
 void MotoronDrive::begin()
@@ -23,17 +31,21 @@ void MotoronDrive::begin()
     Serial.println("MotoronDrive initialized");
 }
 
-
-int16_t MotoronDrive::clamp_speed(int16_t speed)
+void MotoronDrive::stop()
 {
-    if (speed > MOTOR_MAX_SPEED)
+    MotoronChassis::stop(*this);
+}
+
+int16_t MotoronDrive::clamp_speed(int16_t speed) const
+{
+    if (speed > maxSpeed_)
     {
-        speed = MOTOR_MAX_SPEED;
+        speed = maxSpeed_;
     }
 
-    if (speed < -MOTOR_MAX_SPEED)
+    if (speed < -maxSpeed_)
     {
-        speed = -MOTOR_MAX_SPEED;
+        speed = -maxSpeed_;
     }
 
     return speed;
@@ -42,22 +54,26 @@ int16_t MotoronDrive::clamp_speed(int16_t speed)
 
 void MotoronDrive::set_front_left(int16_t speed)
 {
-    front_.setSpeed(MOTOR_FL, clamp_speed(speed));
+    currentFrontLeft_ = clamp_speed(speed);
+    front_.setSpeed(MOTOR_FL, currentFrontLeft_);
 }
 
 void MotoronDrive::set_front_right(int16_t speed)
 {
-    front_.setSpeed(MOTOR_FR, clamp_speed(speed));
+    currentFrontRight_ = clamp_speed(speed);
+    front_.setSpeed(MOTOR_FR, currentFrontRight_);
 }
 
 void MotoronDrive::set_rear_left(int16_t speed)
 {
-    rear_.setSpeed(MOTOR_RL, clamp_speed(speed));
+    currentRearLeft_ = clamp_speed(speed);
+    rear_.setSpeed(MOTOR_RL, currentRearLeft_);
 }
 
 void MotoronDrive::set_rear_right(int16_t speed)
 {
-    rear_.setSpeed(MOTOR_RR, clamp_speed(speed));
+    currentRearRight_ = clamp_speed(speed);
+    rear_.setSpeed(MOTOR_RR, currentRearRight_);
 }
 
 
@@ -69,34 +85,72 @@ void MotoronDrive::set_all(int16_t fl, int16_t fr, int16_t rl, int16_t rr)
     set_rear_right(rr);
 }
 
+void MotoronDrive::get_wheel_speeds(int16_t& fl, int16_t& fr, int16_t& rl, int16_t& rr) const
+{
+    fl = currentFrontLeft_;
+    fr = currentFrontRight_;
+    rl = currentRearLeft_;
+    rr = currentRearRight_;
+}
+
+void MotoronDrive::drive(float vx, float vy, float w)
+{
+    MotoronChassis::drive(
+        *this,
+        vx,
+        vy,
+        w
+    );
+}
+
+void MotoronDrive::set_max_speed(int16_t maxSpeed)
+{
+    if (maxSpeed < 0)
+    {
+        maxSpeed = -maxSpeed;
+    }
+
+    if (maxSpeed > MOTOR_MAX_SPEED)
+    {
+        maxSpeed = MOTOR_MAX_SPEED;
+    }
+
+    maxSpeed_ = maxSpeed;
+}
+
+int16_t MotoronDrive::get_max_speed() const
+{
+    return maxSpeed_;
+}
+
 void MotoronDrive::forward(int16_t speed)
 {
-    set_all(speed, speed, speed, speed);
+    MotoronChassis::forward(*this, speed);
 }
 
 void MotoronDrive::backward(int16_t speed)
 {
-    set_all(-speed, -speed, -speed, -speed);
+    MotoronChassis::backward(*this, speed);
 }
 
 void MotoronDrive::left(int16_t speed)
 {
-    set_all(-speed, speed, -speed, speed);
+    MotoronChassis::left(*this, speed);
 }
 
 void MotoronDrive::right(int16_t speed)
 {
-    set_all(-speed, speed, speed, -speed);
+    MotoronChassis::right(*this, speed);
 }
 
 void MotoronDrive::rotate_left(int16_t speed)
 {
-    set_all(-speed, speed, -speed, speed);
+    MotoronChassis::rotate_left(*this, speed);
 }
 
 void MotoronDrive::rotate_right(int16_t speed)
 {
-    set_all(speed, -speed, speed, -speed);
+    MotoronChassis::rotate_right(*this, speed);
 }
 
 void MotoronDrive::stop_all()

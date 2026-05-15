@@ -6,6 +6,8 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 
+#include "WiFiHandlerConfig.h"
+
 class WiFiHandler
 {
 private:
@@ -16,9 +18,14 @@ private:
 
     WiFiUDP udp;
 
-    char incomingPacket[255];
+    char incomingPacket[UDP_BUFFER_SIZE + 1];
 
     bool stopTriggered;
+    bool udpStarted;
+
+    bool credentialsConfigured();
+    const char* wifiStatusString(uint8_t status);
+    void scanNetworks();
 
 public:
     WiFiHandler(
@@ -32,6 +39,8 @@ public:
     void update();
 
     bool isStopTriggered();
+    void clearStopTriggered();
+    bool isConnected();
 
     IPAddress getIP();
 };
