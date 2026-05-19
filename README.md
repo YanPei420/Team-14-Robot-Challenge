@@ -12,11 +12,6 @@
 | D52 | IR 8   | Chip select |
 | D53 | IR 9   | Chip select |
 
-| Pin | Ultrasonic| Description |
-|:----|:----------|:------------|
-| D11 | ECHO   | Chip select |
-| D12 | TRIG   | Chip select |
-
 | Pin | RFID | Description |
 |:----|:----------|:------------|
 | D13 | SCL   | Chip select |
