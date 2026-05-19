@@ -7,28 +7,29 @@
 // WIFI
 // ======================================================
 
-constexpr const char* WIFI_SSID = "PhaseSpaceNetwork_2.4G";
-constexpr const char* WIFI_PASSWORD = "8igMacNet";
-
-// constexpr const char* WIFI_SSID = "Xiao Mi 15 Ultra";
-// constexpr const char* WIFI_PASSWORD = "00000000";
-
-
-constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 15000;
-constexpr uint32_t WIFI_RETRY_INTERVAL_MS = 500;
-constexpr uint8_t WIFI_MAX_CONNECT_ATTEMPTS = 3;
+constexpr const char* WIFI_SSID = "InnovationLab_WiFi";
+constexpr const char* WIFI_PASSWORD = "WiFi_password";
 
 // ======================================================
-// UDP
+// MQTT BROKER
 // ======================================================
 
-constexpr uint16_t WIFI_UDP_PORT = 4210;
-constexpr size_t UDP_BUFFER_SIZE = 255;
+constexpr const char* BROKER_HOST = "192.168.0.74";
+constexpr uint16_t BROKER_PORT = 1883;
 
 // ======================================================
-// COMMANDS
+// ROBOT IDENTITY
 // ======================================================
 
-constexpr const char* UDP_STOP_COMMAND = "Stop";
+constexpr const char* GROUP_ID = "14";
+constexpr const char* BOARD_ID = "Robot14";
+constexpr const char* SERVER_BOARD_ID = "server";
+
+// ======================================================
+// TIMING
+// ======================================================
+
+constexpr uint32_t WIFI_REGISTER_INTERVAL_MS = 10000;
+constexpr uint32_t WIFI_HEARTBEAT_TIMEOUT_MS = 1000;
 
 #endif

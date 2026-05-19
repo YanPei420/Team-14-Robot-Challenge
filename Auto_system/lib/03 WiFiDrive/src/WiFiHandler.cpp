@@ -1,165 +1,103 @@
 #include "WiFiHandler.h"
 
+#include <stdio.h>
 #include <string.h>
+
+WiFiHandler* WiFiHandler::activeInstance = nullptr;
 
 WiFiHandler::WiFiHandler(
     const char* wifiSSID,
     const char* wifiPassword,
-    uint16_t udpPort
+    const char* mqttBrokerHost,
+    uint16_t mqttBrokerPort,
+    const char* teamGroupId,
+    const char* robotBoardId
 )
 {
     ssid = wifiSSID;
     password = wifiPassword;
-    port = udpPort;
+    brokerHost = mqttBrokerHost;
+    brokerPort = mqttBrokerPort;
+    groupId = teamGroupId;
+    boardId = robotBoardId;
+
     stopTriggered = false;
-    udpStarted = false;
+    safetyEnabled = false;
+    emergencyActive = false;
+    disableActive = false;
+    hasHeartbeat = false;
+    lastHeartbeatMs = 0;
+    lastRegisterMs = 0;
+
+    lastReason[0] = '\0';
+    lastTagId[0] = '\0';
+    lastMessage[0] = '\0';
 }
 
 void WiFiHandler::begin()
 {
     if (!credentialsConfigured())
     {
-        Serial.println("WiFi credentials are empty, skip connection");
+        Serial.println("WiFi/MQTT credentials are incomplete, skip connection");
         return;
     }
 
-    if (WiFi.status() == WL_CONNECTED)
-    {
-        Serial.print("WiFi already connected, IP: ");
-        Serial.println(WiFi.localIP());
+    activeInstance = this;
+    resetMessageState();
+    messenger.onMessage(handleIncomingMessage);
 
-        udp.begin(port);
-        udpStarted = true;
-        return;
-    }
-
-    scanNetworks();
-
-    for (uint8_t attempt = 1; attempt <= WIFI_MAX_CONNECT_ATTEMPTS; ++attempt)
-    {
-        Serial.print("[Attempt ");
-        Serial.print(attempt);
-        Serial.print("/");
-        Serial.print(WIFI_MAX_CONNECT_ATTEMPTS);
-        Serial.print("] Connecting to '");
-        Serial.print(ssid);
-        Serial.println("'...");
-
-        WiFi.begin(
+    const bool started =
+        messenger.begin(
             ssid,
-            password
+            password,
+            brokerHost,
+            brokerPort,
+            groupId,
+            boardId
         );
 
-        const uint32_t startMs = millis();
-        uint8_t previousStatus = 0xFF;
-        uint8_t status = WiFi.status();
-
-        while (
-            status != WL_CONNECTED
-            &&
-            (millis() - startMs) < WIFI_CONNECT_TIMEOUT_MS
-        )
-        {
-            delay(WIFI_RETRY_INTERVAL_MS);
-            status = WiFi.status();
-
-            if (status != previousStatus)
-            {
-                Serial.print("  status: ");
-                Serial.print(wifiStatusString(status));
-                Serial.print(" (");
-                Serial.print(status);
-                Serial.println(")");
-                previousStatus = status;
-            }
-            else
-            {
-                Serial.print(".");
-            }
-        }
-
-        Serial.println();
-
-        if (status == WL_CONNECTED)
-        {
-            Serial.print("WiFi connected, IP: ");
-            Serial.println(WiFi.localIP());
-
-            udp.begin(port);
-            udpStarted = true;
-
-            Serial.print("UDP listening on port ");
-            Serial.println(port);
-            return;
-        }
-
-        Serial.print("  Attempt ");
-        Serial.print(attempt);
-        Serial.print(" failed. Final status: ");
-        Serial.print(wifiStatusString(status));
-        Serial.print(" (");
-        Serial.print(status);
-        Serial.println(")");
-
-        if (attempt < WIFI_MAX_CONNECT_ATTEMPTS)
-        {
-            Serial.println("  Retrying in 2 s...");
-            delay(2000);
-        }
-    }
-
-    Serial.print("WiFi connection failed after ");
-    Serial.print(WIFI_MAX_CONNECT_ATTEMPTS);
-    Serial.println(" attempts.");
+    Serial.print("MiniMessenger begin: ");
+    Serial.println(started ? "connected" : "connecting");
 }
 
 void WiFiHandler::update()
 {
-    if (!udpStarted)
-    {
-        return;
-    }
+    messenger.loop();
+    updateSafetyState();
 
-    int packetSize =
-        udp.parsePacket();
-
-    if (packetSize)
-    {
-        int len =
-            udp.read(
-                incomingPacket,
-                UDP_BUFFER_SIZE
-            );
-
-        if (len > 0)
-        {
-            incomingPacket[len] = '\0';
-        }
-
-        Serial.print(
-            "UDP: "
-        );
-
-        Serial.println(
-            incomingPacket
-        );
-
-        if (
-            strcmp(
-                incomingPacket,
-                UDP_STOP_COMMAND
-            )
-            ==
-            0
+    if (
+        messenger.isConnected()
+        &&
+        (
+            lastRegisterMs == 0
+            ||
+            (millis() - lastRegisterMs) >= WIFI_REGISTER_INTERVAL_MS
         )
+    )
+    {
+        if (sendRegister())
         {
-            stopTriggered = true;
-            Serial.println("UDP stop command triggered");
+            lastRegisterMs = millis();
         }
     }
 }
 
-bool WiFiHandler::isStopTriggered()
+bool WiFiHandler::isConnected()
+{
+    return messenger.isConnected();
+}
+
+IPAddress WiFiHandler::getIP()
+{
+    return WiFi.localIP();
+}
+
+bool WiFiHandler::isSafetyEnabled() const
+{
+    return safetyEnabled;
+}
+
+bool WiFiHandler::isStopTriggered() const
 {
     return stopTriggered;
 }
@@ -169,104 +107,376 @@ void WiFiHandler::clearStopTriggered()
     stopTriggered = false;
 }
 
-bool WiFiHandler::isConnected()
+bool WiFiHandler::isEmergencyActive() const
 {
-    return WiFi.status() == WL_CONNECTED;
+    return emergencyActive;
 }
 
-IPAddress WiFiHandler::getIP()
+bool WiFiHandler::isDisableActive() const
 {
-    return WiFi.localIP();
+    return disableActive;
 }
 
-bool WiFiHandler::credentialsConfigured()
+bool WiFiHandler::hasHeartbeatTimedOut() const
 {
-    return ssid != nullptr && ssid[0] != '\0';
-}
-
-const char* WiFiHandler::wifiStatusString(uint8_t status)
-{
-    switch (status)
+    if (!hasHeartbeat)
     {
-        case WL_IDLE_STATUS:
-            return "IDLE";
-        case WL_NO_SSID_AVAIL:
-            return "NO_SSID_AVAIL";
-        case WL_SCAN_COMPLETED:
-            return "SCAN_COMPLETED";
-        case WL_CONNECTED:
-            return "CONNECTED";
-        case WL_CONNECT_FAILED:
-            return "CONNECT_FAILED";
-        case WL_CONNECTION_LOST:
-            return "CONNECTION_LOST";
-        case WL_DISCONNECTED:
-            return "DISCONNECTED";
-        default:
-            return "UNKNOWN";
+        return true;
+    }
+
+    return (millis() - lastHeartbeatMs) > WIFI_HEARTBEAT_TIMEOUT_MS;
+}
+
+const char* WiFiHandler::getBoardId() const
+{
+    return boardId;
+}
+
+const char* WiFiHandler::getGroupId() const
+{
+    return groupId;
+}
+
+const char* WiFiHandler::getLastReason() const
+{
+    return lastReason;
+}
+
+const char* WiFiHandler::getLastTagId() const
+{
+    return lastTagId;
+}
+
+const char* WiFiHandler::getLastMessage() const
+{
+    return lastMessage;
+}
+
+bool WiFiHandler::sendRegister()
+{
+    char payload[96];
+
+    snprintf(
+        payload,
+        sizeof(payload),
+        "type=register team_id=%s board_id=%s",
+        groupId,
+        boardId
+    );
+
+    return sendServerMessage(payload);
+}
+
+bool WiFiHandler::sendIsFertile(const char* tagId)
+{
+    if (tagId == nullptr || tagId[0] == '\0')
+    {
+        return false;
+    }
+
+    char payload[128];
+
+    snprintf(
+        payload,
+        sizeof(payload),
+        "type=isFertile team_id=%s board_id=%s tag_id=%s",
+        groupId,
+        boardId,
+        tagId
+    );
+
+    return sendServerMessage(payload);
+}
+
+bool WiFiHandler::sendSeedPlanted(const char* tagId)
+{
+    if (tagId == nullptr || tagId[0] == '\0')
+    {
+        return false;
+    }
+
+    char payload[128];
+
+    snprintf(
+        payload,
+        sizeof(payload),
+        "type=seedPlanted team_id=%s board_id=%s tag_id=%s",
+        groupId,
+        boardId,
+        tagId
+    );
+
+    return sendServerMessage(payload);
+}
+
+bool WiFiHandler::sendOpenAirlockA()
+{
+    char payload[96];
+
+    snprintf(
+        payload,
+        sizeof(payload),
+        "type=openAirlockA team_id=%s board_id=%s",
+        groupId,
+        boardId
+    );
+
+    return sendServerMessage(payload);
+}
+
+bool WiFiHandler::sendOpenAirlockB()
+{
+    char payload[96];
+
+    snprintf(
+        payload,
+        sizeof(payload),
+        "type=openAirlockB team_id=%s board_id=%s",
+        groupId,
+        boardId
+    );
+
+    return sendServerMessage(payload);
+}
+
+bool WiFiHandler::sendToBoard(
+    const char* targetBoardId,
+    const char* payload
+)
+{
+    return messenger.sendToBoard(
+        targetBoardId,
+        payload
+    );
+}
+
+bool WiFiHandler::sendToGroup(const char* payload)
+{
+    return messenger.sendToGroup(payload);
+}
+
+void WiFiHandler::handleIncomingMessage(
+    const MessageMetadata& metadata,
+    const uint8_t* payload,
+    size_t length
+)
+{
+    if (activeInstance != nullptr)
+    {
+        activeInstance->onMessage(
+            metadata,
+            payload,
+            length
+        );
     }
 }
 
-void WiFiHandler::scanNetworks()
+void WiFiHandler::onMessage(
+    const MessageMetadata& metadata,
+    const uint8_t* payload,
+    size_t length
+)
 {
-    Serial.println("Scanning nearby WiFi networks...");
+    (void) metadata;
 
-    const int networkCount = WiFi.scanNetworks();
-
-    if (networkCount < 0)
+    if (payload == nullptr || length == 0)
     {
-        Serial.print("WiFi scan failed, error: ");
-        Serial.println(networkCount);
         return;
     }
 
-    if (networkCount == 0)
+    const size_t copyLength =
+        (length < MiniMessenger::kMaxPayloadSize)
+        ?
+        length
+        :
+        MiniMessenger::kMaxPayloadSize;
+
+    memcpy(
+        lastMessage,
+        payload,
+        copyLength
+    );
+
+    lastMessage[copyLength] = '\0';
+
+    if (containsToken(lastMessage, "type=heartbeat"))
     {
-        Serial.println("No WiFi networks found.");
-        return;
+        hasHeartbeat = true;
+        lastHeartbeatMs = millis();
+
+        if (containsToken(lastMessage, "enable=1"))
+        {
+            safetyEnabled = true;
+        }
+        else if (containsToken(lastMessage, "enable=0"))
+        {
+            safetyEnabled = false;
+            stopTriggered = true;
+        }
     }
 
-    Serial.print("Found ");
-    Serial.print(networkCount);
-    Serial.println(" network(s):");
-
-    bool targetFound = false;
-
-    for (int i = 0; i < networkCount; ++i)
+    if (containsToken(lastMessage, "type=emergency"))
     {
-        const bool isTarget =
-            strcmp(
-                WiFi.SSID(i),
-                ssid
-            )
-            ==
-            0;
+        emergencyActive =
+            containsToken(lastMessage, "enabled=true");
 
-        if (isTarget)
+        if (emergencyActive)
         {
-            targetFound = true;
+            stopTriggered = true;
+        }
+    }
+
+    if (containsToken(lastMessage, "type=disable"))
+    {
+        disableActive =
+            containsToken(lastMessage, "enabled=false");
+
+        if (disableActive)
+        {
+            stopTriggered = true;
         }
 
-        Serial.print("  [");
-        Serial.print(i + 1);
-        Serial.print("] ");
-        Serial.print(WiFi.SSID(i));
-        Serial.print(" RSSI: ");
-        Serial.print(WiFi.RSSI(i));
-        Serial.print(" dBm");
-
-        if (isTarget)
-        {
-            Serial.print(" <<< TARGET");
-        }
-
-        Serial.println();
+        extractValue(
+            lastMessage,
+            "reason=",
+            lastReason,
+            sizeof(lastReason)
+        );
     }
 
-    if (!targetFound)
+    if (
+        containsToken(lastMessage, "type=isFertileReply")
+        ||
+        containsToken(lastMessage, "type=seedPlanted")
+    )
     {
-        Serial.print("WARNING: Target SSID '");
-        Serial.print(ssid);
-        Serial.println("' not seen in scan!");
+        extractValue(
+            lastMessage,
+            "tag_id=",
+            lastTagId,
+            sizeof(lastTagId)
+        );
     }
+
+    updateSafetyState();
+}
+
+void WiFiHandler::resetMessageState()
+{
+    stopTriggered = false;
+    safetyEnabled = false;
+    emergencyActive = false;
+    disableActive = false;
+    hasHeartbeat = false;
+    lastHeartbeatMs = 0;
+    lastRegisterMs = 0;
+    lastReason[0] = '\0';
+    lastTagId[0] = '\0';
+    lastMessage[0] = '\0';
+}
+
+void WiFiHandler::updateSafetyState()
+{
+    if (hasHeartbeatTimedOut())
+    {
+        safetyEnabled = false;
+        stopTriggered = true;
+    }
+
+    if (emergencyActive || disableActive)
+    {
+        safetyEnabled = false;
+        stopTriggered = true;
+    }
+}
+
+bool WiFiHandler::containsToken(
+    const char* text,
+    const char* token
+) const
+{
+    if (text == nullptr || token == nullptr)
+    {
+        return false;
+    }
+
+    return strstr(text, token) != nullptr;
+}
+
+bool WiFiHandler::extractValue(
+    const char* text,
+    const char* key,
+    char* output,
+    size_t outputSize
+) const
+{
+    if (
+        text == nullptr
+        ||
+        key == nullptr
+        ||
+        output == nullptr
+        ||
+        outputSize == 0
+    )
+    {
+        return false;
+    }
+
+    const char* start = strstr(text, key);
+
+    if (start == nullptr)
+    {
+        output[0] = '\0';
+        return false;
+    }
+
+    start += strlen(key);
+
+    size_t index = 0;
+
+    while (
+        start[index] != '\0'
+        &&
+        start[index] != ' '
+        &&
+        index < (outputSize - 1)
+    )
+    {
+        output[index] = start[index];
+        ++index;
+    }
+
+    output[index] = '\0';
+    return index > 0;
+}
+
+bool WiFiHandler::credentialsConfigured() const
+{
+    return
+        ssid != nullptr
+        &&
+        ssid[0] != '\0'
+        &&
+        password != nullptr
+        &&
+        brokerHost != nullptr
+        &&
+        brokerHost[0] != '\0'
+        &&
+        groupId != nullptr
+        &&
+        groupId[0] != '\0'
+        &&
+        boardId != nullptr
+        &&
+        boardId[0] != '\0';
+}
+
+bool WiFiHandler::sendServerMessage(const char* payload)
+{
+    return sendToBoard(
+        SERVER_BOARD_ID,
+        payload
+    );
 }

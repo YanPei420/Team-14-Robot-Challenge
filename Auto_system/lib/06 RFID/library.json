@@ -1,12 +1,9 @@
 {
-    "name": "WiFiHandler",
+    "name": "RFIDHandler",
     "version": "1.0.0",
     "dependencies": [
         {
-            "name": "MiniMessenger"
-        },
-        {
-            "name": "ArduinoMqttClient"
+            "name": "MFRC522v2"
         }
     ],
     "build": {

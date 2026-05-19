@@ -1,0 +1,27 @@
+name: Arduino Lint
+
+# This determines when the workflow will run
+on:
+  push:
+    branches: [ "main" ]      # Runs when you push to main
+  pull_request:
+    branches: [ "main" ]      # Runs when a PR is made against main
+
+jobs:
+  lint:
+    name: Run Arduino Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the code from your repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Run the official Arduino Lint action
+      - name: Run Arduino Lint
+        uses: arduino/arduino-lint-action@v2
+        with:
+          # 'strict' compliance ensures it meets all Library Registry rules
+          compliance: strict
+          # 'update' tells the linter to check against the latest registry index
+          library-manager: update

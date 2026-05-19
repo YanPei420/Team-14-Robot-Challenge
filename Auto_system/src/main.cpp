@@ -1,9 +1,51 @@
 #include <Arduino.h>
 
-#include "MotorConfig.h"
-#include "MotoronDrive.h"
+#include "WiFiHandler.h"
+#include "WiFiHandlerConfig.h"
 
-MotoronDrive Robot(MOTORON_ADDR_FRONT, MOTORON_ADDR_REAR);
+WiFiHandler wifiHandler;
+
+unsigned long lastStatusPrintMs = 0;
+bool lastConnectedState = false;
+
+void printWiFiTestBanner()
+{
+    Serial.println();
+    Serial.println("========================================");
+    Serial.println("WiFi Test");
+    Serial.println("========================================");
+    Serial.print("Target SSID: ");
+    Serial.println(WIFI_SSID);
+    Serial.print("MQTT broker: ");
+    Serial.print(BROKER_HOST);
+    Serial.print(":");
+    Serial.println(BROKER_PORT);
+    Serial.print("Group ID: ");
+    Serial.println(GROUP_ID);
+    Serial.print("Board ID: ");
+    Serial.println(BOARD_ID);
+    Serial.println("========================================");
+}
+
+void printConnectionStatus()
+{
+    const bool connected = wifiHandler.isConnected();
+
+    if (connected != lastConnectedState)
+    {
+        lastConnectedState = connected;
+
+        if (connected)
+        {
+            Serial.print("WiFi connected, local IP: ");
+            Serial.println(wifiHandler.getIP());
+        }
+        else
+        {
+            Serial.println("WiFi disconnected");
+        }
+    }
+}
 
 void setup()
 {
@@ -11,41 +53,53 @@ void setup()
 
     while (!Serial)
     {
-        ;
     }
 
-    Robot.begin();
+    delay(500);
 
-    Serial.println("FORWARD SPEED TEST");
+    printWiFiTestBanner();
+    wifiHandler.begin();
+    printConnectionStatus();
 }
 
 void loop()
 {
-    // ======================================================
-    // SPEED 100
-    // ======================================================
+    wifiHandler.update();
+    printConnectionStatus();
 
-    Serial.println("FORWARD 100");
+    if ((millis() - lastStatusPrintMs) >= 5000)
+    {
+        lastStatusPrintMs = millis();
 
-    Robot.forward(100);
+        Serial.print("Heartbeat: Link ");
+        Serial.print(wifiHandler.isConnected() ? "OK" : "NOT CONNECTED");
+        Serial.print(", Safety ");
+        Serial.print(wifiHandler.isSafetyEnabled() ? "ENABLED" : "DISABLED");
 
-    delay(3000);
+        if (wifiHandler.isConnected())
+        {
+            Serial.print(", IP: ");
+            Serial.println(wifiHandler.getIP());
+        }
+        else
+        {
+            Serial.println();
+        }
+    }
 
-    Robot.stop_all();
+    if (wifiHandler.isStopTriggered())
+    {
+        Serial.print("Test result: stop triggered");
 
-    delay(1000);
+        if (wifiHandler.getLastReason()[0] != '\0')
+        {
+            Serial.print(", reason=");
+            Serial.print(wifiHandler.getLastReason());
+        }
 
-    // ======================================================
-    // SPEED 500
-    // ======================================================
+        Serial.println();
+        wifiHandler.clearStopTriggered();
+    }
 
-    Serial.println("FORWARD 500");
-
-    Robot.forward(500);
-
-    delay(3000);
-
-    Robot.stop_all();
-
-    delay(2000);
+    delay(50);
 }

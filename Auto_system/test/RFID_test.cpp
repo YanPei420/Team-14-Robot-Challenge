@@ -1,5 +1,3 @@
-#define Wire Wire1
-
 #include <Arduino.h>
 #include <Wire.h>
 
@@ -7,39 +5,46 @@
 #include <MFRC522v2.h>
 
 MFRC522DriverI2C driver(0x28);
-MFRC522 mfrc522(driver);
+MFRC522 rfid(driver);
 
 void setup()
 {
     Serial.begin(115200);
 
+    while (!Serial);
+
     Wire.begin();
 
-    mfrc522.PCD_Init();
+    rfid.PCD_Init();
 
-    Serial.println("RFID READY");
+    Serial.println("Hold an RFID card near the reader...");
 }
 
 void loop()
 {
-    if (!mfrc522.PICC_IsNewCardPresent())
+    if (!rfid.PICC_IsNewCardPresent())
     {
         delay(50);
         return;
     }
 
-    if (!mfrc522.PICC_ReadCardSerial())
+    if (!rfid.PICC_ReadCardSerial())
     {
         delay(50);
         return;
     }
 
-    Serial.print("UID: ");
+    Serial.print("Card UID: ");
 
-    for (byte i = 0; i < mfrc522.uid.size; i++)
+    for (byte i = 0; i < rfid.uid.size; i++)
     {
+        if (rfid.uid.uidByte[i] < 0x10)
+        {
+            Serial.print("0");
+        }
+
         Serial.print(
-            mfrc522.uid.uidByte[i],
+            rfid.uid.uidByte[i],
             HEX
         );
 
@@ -48,7 +53,7 @@ void loop()
 
     Serial.println();
 
-    mfrc522.PICC_HaltA();
+    rfid.PICC_HaltA();
 
     delay(500);
 }

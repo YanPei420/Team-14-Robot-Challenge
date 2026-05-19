@@ -1,0 +1,9 @@
+.vscode/
+.pio/
+build/
+*.bin
+*.elf
+*.hex
+
+examples/*/
+!examples/GIGA_Servo_Safety_Test/
