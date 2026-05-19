@@ -1,6 +1,5 @@
 #pragma once
 #include <Arduino.h>
-#define Wire Wire1
 #include <Motoron.h>
 
 class MotoronDrive
@@ -32,6 +31,13 @@ public:
     void rotate_right(int16_t speed);
 
     void stop_all(); 
+    void raw_front(int16_t motor1, int16_t motor2);
+    void raw_rear(int16_t motor1, int16_t motor2);
+    void raw_front_motor(uint8_t motor, int16_t speed, bool immediate);
+    void raw_rear_motor(uint8_t motor, int16_t speed, bool immediate);
+    void resend_current_speeds();
+    void clear_status_flags();
+    void print_status(Stream& output);
 
 private:
     MotoronI2C front_;
@@ -43,5 +49,10 @@ private:
     int16_t currentRearLeft_;
     int16_t currentRearRight_;
 
+    void setup_controller(MotoronI2C& controller);
+    void configure_motor_limits(MotoronI2C& controller, uint8_t motor);
+    void clear_controller_status_flags(MotoronI2C& controller);
+    void print_controller_status(Stream& output, const char* name, MotoronI2C& controller);
+    void print_motor_status(Stream& output, MotoronI2C& controller, uint8_t motor);
     int16_t clamp_speed(int16_t speed) const;
 };

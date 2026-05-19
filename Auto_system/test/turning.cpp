@@ -1,19 +1,17 @@
-#define Wire Wire1
-
 #include <Arduino.h>
 #include <Wire.h>
 
 #include <MFRC522DriverI2C.h>
 #include <MFRC522v2.h>
 
-MFRC522DriverI2C driver(0x28);
+MFRC522DriverI2C driver(0x28, Wire1);
 MFRC522 mfrc522(driver);
 
 void setup()
 {
     Serial.begin(115200);
 
-    Wire.begin();
+    Wire1.begin();
 
     mfrc522.PCD_Init();
 

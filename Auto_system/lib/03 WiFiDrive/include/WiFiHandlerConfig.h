@@ -7,8 +7,8 @@
 // WIFI
 // ======================================================
 
-constexpr const char* WIFI_SSID = "InnovationLab_WiFi";
-constexpr const char* WIFI_PASSWORD = "WiFi_password";
+constexpr const char* WIFI_SSID = "PhaseSpaceNetwork_2.4G";
+constexpr const char* WIFI_PASSWORD = "8igMacNet";
 
 // ======================================================
 // MQTT BROKER

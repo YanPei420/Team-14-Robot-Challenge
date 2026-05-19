@@ -1,7 +1,7 @@
 #pragma once
 
-#define MOTORON_ADDR_FRONT 16
-#define MOTORON_ADDR_REAR  17
+#define MOTORON_ADDR_FRONT 0x60
+#define MOTORON_ADDR_REAR  0x10
 
 #define MOTOR_FL 1
 #define MOTOR_FR 2
@@ -9,3 +9,6 @@
 #define MOTOR_RR 2
 
 #define MOTOR_MAX_SPEED 800
+
+#define MOTORON_MAX_ACCELERATION 200
+#define MOTORON_MAX_DECELERATION 200
