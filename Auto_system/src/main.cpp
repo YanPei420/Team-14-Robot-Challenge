@@ -2,11 +2,13 @@
 #include <MiniMessenger.h>
 #include <string.h>
 
+#include "LED.h"
 #include "MotoronDrive.h"
 #include "WiFiHandlerConfig.h"
 
 MotoronDrive robot;
 MiniMessenger messenger;
+LED statusLed;
 
 constexpr int16_t DRIVE_FORWARD_SPEED = 500;
 
@@ -162,6 +164,7 @@ void setup()
     }
 
     robot.begin();
+    statusLed.begin();
     stopRobot();
 
     Serial.println("WiFi enable-gated drive ready");
@@ -206,6 +209,15 @@ void loop()
     }
 
     const bool enabled = movementEnabled();
+
+    if (enabled)
+    {
+        statusLed.showNormal();
+    }
+    else
+    {
+        statusLed.showEmergency();
+    }
 
     if (enabled)
     {
