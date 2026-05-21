@@ -3,7 +3,7 @@
 #include <Arduino.h>
 
 constexpr uint8_t MOTORON_ADDR_FRONT = 16;
-constexpr uint8_t MOTORON_ADDR_REAR = 15;
+constexpr uint8_t MOTORON_ADDR_REAR = 17;
 
 constexpr uint8_t MOTORON_CHANNEL_FRONT_LEFT = 1;
 constexpr uint8_t MOTORON_CHANNEL_FRONT_RIGHT = 2;
