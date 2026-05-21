@@ -10,6 +10,10 @@
 constexpr const char* WIFI_SSID = "PhaseSpaceNetwork_2.4G";
 constexpr const char* WIFI_PASSWORD = "8igMacNet";
 
+
+// constexpr const char* WIFI_SSID = "Xiaomi 15 Ultra";
+// constexpr const char* WIFI_PASSWORD = "00000000";
+
 // ======================================================
 // MQTT BROKER
 // ======================================================

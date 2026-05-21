@@ -1,0 +1,161 @@
+# MotoronDrive
+
+MotoronDrive is the robot chassis drive wrapper for two Pololu Motoron I2C
+motor controllers on the Arduino Giga R1 WiFi.
+
+The class hides the repeated Motoron setup code, keeps all motor addresses and
+direction signs in one config file, clamps speed commands, and exposes simple
+chassis movement helpers such as `forward()`, `right()`, and `stop_all()`.
+
+## Files
+
+| File | Purpose |
+| --- | --- |
+| `include/MotorConfig.h` | Motoron addresses, channels, speed limits, acceleration, deceleration, and motor direction signs. |
+| `include/MotoronDrive.h` | Public `MotoronDrive` API. |
+| `src/MotoronDrive.cpp` | Motoron initialization, wheel output, mecanum drive math, stop, raw debug, and status helpers. |
+
+## Hardware Mapping
+
+The controllers use `Wire1`.
+
+| Device | I2C address |
+| --- | --- |
+| Front Motoron board | `16` (`0x10`) |
+| Rear Motoron board | `17` (`0x11`) |
+
+| Wheel | Board | Motoron channel |
+| --- | --- | --- |
+| Front left | Front | `1` |
+| Front right | Front | `2` |
+| Rear left | Rear | `1` |
+| Rear right | Rear | `2` |
+
+## Direction Mapping
+
+Logical wheel speeds are converted to raw Motoron speeds using the direction
+signs in `MotorConfig.h`.
+
+| Wheel | Direction sign |
+| --- | --- |
+| Front left | `1` |
+| Front right | `-1` |
+| Rear left | `1` |
+| Rear right | `-1` |
+
+So:
+
+```cpp
+Robot.forward(500);
+```
+
+sends these raw Motoron speeds:
+
+| Motoron output | Speed |
+| --- | --- |
+| Front channel 1 | `500` |
+| Front channel 2 | `-500` |
+| Rear channel 1 | `500` |
+| Rear channel 2 | `-500` |
+
+## Default Settings
+
+| Setting | Value |
+| --- | --- |
+| `MOTOR_MAX_SPEED` | `800` |
+| `MOTOR_MAX_ACCELERATION` | `300` |
+| `MOTOR_MAX_DECELERATION` | `600` |
+| `MOTOR_COMMAND_TIMEOUT_MS` | `1000` |
+
+All normal wheel commands are clamped to `[-maxSpeed, maxSpeed]`.
+
+## Basic Usage
+
+```cpp
+#include <Arduino.h>
+
+#include "MotorConfig.h"
+#include "MotoronDrive.h"
+
+MotoronDrive Robot(MOTORON_ADDR_FRONT, MOTORON_ADDR_REAR);
+
+void setup()
+{
+    Serial.begin(115200);
+    while (!Serial) {}
+
+    Robot.begin();
+}
+
+void loop()
+{
+    Robot.forward(500);
+    delay(1000);
+}
+```
+
+`begin()` calls `Wire1.begin()`, attaches both Motoron controllers to `Wire1`,
+reinitializes them, disables CRC, clears reset flags, sets command timeout,
+sets acceleration/deceleration for channels 1 and 2, and stops all motors.
+
+## Movement API
+
+| Method | Description |
+| --- | --- |
+| `forward(speed)` | Drive forward. |
+| `backward(speed)` | Drive backward. |
+| `left(speed)` | Strafe left. |
+| `right(speed)` | Strafe right. |
+| `rotate_left(speed)` | Rotate left. |
+| `rotate_right(speed)` | Rotate right. |
+| `drive(vx, vy, w)` | Mecanum drive command. `vx` is forward/back, `vy` is right/left, `w` is rotation. |
+| `stop()` | Alias for `stop_all()`. |
+| `stop_all()` | Immediately sets all four channels to zero with `setSpeedNow()`. |
+
+`drive(vx, vy, w)` uses this wheel math:
+
+```cpp
+frontLeft  = vx - vy - w;
+frontRight = vx + vy + w;
+rearLeft   = vx + vy - w;
+rearRight  = vx - vy + w;
+```
+
+If any computed wheel speed is above `maxSpeed`, all four wheel speeds are
+scaled down proportionally.
+
+## Wheel API
+
+| Method | Description |
+| --- | --- |
+| `set_front_left(speed)` | Set the logical front-left wheel speed. |
+| `set_front_right(speed)` | Set the logical front-right wheel speed. |
+| `set_rear_left(speed)` | Set the logical rear-left wheel speed. |
+| `set_rear_right(speed)` | Set the logical rear-right wheel speed. |
+| `set_all(fl, fr, rl, rr)` | Set all four logical wheel speeds. |
+| `get_wheel_speeds(fl, fr, rl, rr)` | Read the last commanded logical wheel speeds. |
+| `set_max_speed(maxSpeed)` | Set the clamp limit used by normal commands. |
+| `get_max_speed()` | Read the current clamp limit. |
+
+## Raw Debug API
+
+Raw methods send speeds directly to Motoron channels without applying wheel
+direction signs. They still clamp to the configured maximum speed.
+
+| Method | Description |
+| --- | --- |
+| `raw_front(motor1, motor2, immediate)` | Set both front-board Motoron channels directly. |
+| `raw_rear(motor1, motor2, immediate)` | Set both rear-board Motoron channels directly. |
+| `raw_front_motor(channel, speed, immediate)` | Set one front-board channel directly. |
+| `raw_rear_motor(channel, speed, immediate)` | Set one rear-board channel directly. |
+
+When `immediate` is `true`, raw methods use `setSpeedNow()`. Otherwise they use
+`setSpeed()`.
+
+## Status Helpers
+
+| Method | Description |
+| --- | --- |
+| `clear_status_flags()` | Clears reset, latched status, and motor fault flags on both Motoron boards. |
+| `print_status(Stream& output)` | Prints address, status flags, and last I2C error for both boards. |
+

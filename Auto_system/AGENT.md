@@ -117,7 +117,7 @@ Defined in `lib/01 MotoronDrive/include/MotorConfig.h`:
 | Device | Address |
 | --- | --- |
 | Front Motoron board | `16` (`0x10`) |
-| Rear Motoron board | `17` (`0x11`) |
+| Right Motoron board | `17` (`0x11`) |
 
 Motor channel mapping:
 

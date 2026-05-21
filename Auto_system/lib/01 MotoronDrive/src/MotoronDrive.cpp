@@ -1,161 +1,45 @@
 #include "MotoronDrive.h"
-#include "MotorConfig.h"
-#include "MotoronChassis.h"
 
-MotoronDrive::MotoronDrive(uint8_t Front_Board, uint8_t Rear_Board)
-    : front_(Front_Board),
-      rear_(Rear_Board),
+MotoronDrive::MotoronDrive(uint8_t frontAddress, uint8_t rearAddress)
+    : front_(frontAddress),
+      rear_(rearAddress),
       maxSpeed_(MOTOR_MAX_SPEED),
-      currentFrontLeft_(0),
-      currentFrontRight_(0),
-      currentRearLeft_(0),
-      currentRearRight_(0)
+      frontLeft_(0),
+      frontRight_(0),
+      rearLeft_(0),
+      rearRight_(0)
 {
 }
 
-void MotoronDrive::begin()
+bool MotoronDrive::begin()
 {
     Wire1.begin();
 
-    setup_controller(front_);
-    setup_controller(rear_);
+    front_.setBus(&Wire1);
+    rear_.setBus(&Wire1);
+
+    setupController(front_);
+    setupController(rear_);
 
     stop_all();
 
-    Serial.println("MotoronDrive initialized");
+    return front_.getLastError() == 0 && rear_.getLastError() == 0;
 }
 
-void MotoronDrive::setup_controller(MotoronI2C& controller)
+void MotoronDrive::setupController(MotoronI2C& controller)
 {
-    controller.setBus(&Wire1);
-
     controller.reinitialize();
     controller.disableCrc();
     controller.clearResetFlag();
-    controller.disableCommandTimeout();
-    controller.clearMotorFaultUnconditional();
+    controller.setCommandTimeoutMilliseconds(MOTOR_COMMAND_TIMEOUT_MS);
 
-    configure_motor_limits(controller, 1);
-    configure_motor_limits(controller, 2);
+    controller.setMaxAcceleration(1, MOTOR_MAX_ACCELERATION);
+    controller.setMaxDeceleration(1, MOTOR_MAX_DECELERATION);
+    controller.setMaxAcceleration(2, MOTOR_MAX_ACCELERATION);
+    controller.setMaxDeceleration(2, MOTOR_MAX_DECELERATION);
 }
 
-void MotoronDrive::configure_motor_limits(MotoronI2C& controller, uint8_t motor)
-{
-    controller.setMaxAcceleration(motor, MOTORON_MAX_ACCELERATION);
-    controller.setMaxDeceleration(motor, MOTORON_MAX_DECELERATION);
-}
-
-void MotoronDrive::stop()
-{
-    stop_all();
-}
-
-void MotoronDrive::stop_all()
-{
-    set_all(0, 0, 0, 0);
-}
-
-void MotoronDrive::set_front_left(int16_t speed)
-{
-    currentFrontLeft_ = clamp_speed(speed);
-    front_.setSpeed(MOTOR_FL, currentFrontLeft_);
-}
-
-void MotoronDrive::set_front_right(int16_t speed)
-{
-    currentFrontRight_ = clamp_speed(speed);
-    front_.setSpeed(MOTOR_FR, currentFrontRight_);
-}
-
-void MotoronDrive::set_rear_left(int16_t speed)
-{
-    currentRearLeft_ = clamp_speed(speed);
-    rear_.setSpeed(MOTOR_RL, currentRearLeft_);
-}
-
-void MotoronDrive::set_rear_right(int16_t speed)
-{
-    currentRearRight_ = clamp_speed(speed);
-    rear_.setSpeed(MOTOR_RR, currentRearRight_);
-}
-
-void MotoronDrive::set_all(int16_t fl, int16_t fr, int16_t rl, int16_t rr)
-{
-    currentFrontLeft_ = clamp_speed(fl);
-    currentFrontRight_ = clamp_speed(fr);
-    currentRearLeft_ = clamp_speed(rl);
-    currentRearRight_ = clamp_speed(rr);
-
-    front_.setSpeed(MOTOR_FL, currentFrontLeft_);
-    front_.setSpeed(MOTOR_FR, currentFrontRight_);
-    rear_.setSpeed(MOTOR_RL, currentRearLeft_);
-    rear_.setSpeed(MOTOR_RR, currentRearRight_);
-}
-
-void MotoronDrive::get_wheel_speeds(int16_t& fl, int16_t& fr, int16_t& rl, int16_t& rr) const
-{
-    fl = currentFrontLeft_;
-    fr = currentFrontRight_;
-    rl = currentRearLeft_;
-    rr = currentRearRight_;
-}
-
-void MotoronDrive::drive(float vx, float vy, float w)
-{
-    MotoronChassis::drive(*this, vx, vy, w);
-}
-
-void MotoronDrive::forward(int16_t speed)
-{
-    MotoronChassis::forward(*this, speed);
-}
-
-void MotoronDrive::backward(int16_t speed)
-{
-    MotoronChassis::backward(*this, speed);
-}
-
-void MotoronDrive::left(int16_t speed)
-{
-    MotoronChassis::left(*this, speed);
-}
-
-void MotoronDrive::right(int16_t speed)
-{
-    MotoronChassis::right(*this, speed);
-}
-
-void MotoronDrive::rotate_left(int16_t speed)
-{
-    MotoronChassis::rotate_left(*this, speed);
-}
-
-void MotoronDrive::rotate_right(int16_t speed)
-{
-    MotoronChassis::rotate_right(*this, speed);
-}
-
-void MotoronDrive::set_max_speed(int16_t maxSpeed)
-{
-    if (maxSpeed < 0)
-    {
-        maxSpeed = -maxSpeed;
-    }
-
-    if (maxSpeed > MOTOR_MAX_SPEED)
-    {
-        maxSpeed = MOTOR_MAX_SPEED;
-    }
-
-    maxSpeed_ = maxSpeed;
-}
-
-int16_t MotoronDrive::get_max_speed() const
-{
-    return maxSpeed_;
-}
-
-int16_t MotoronDrive::clamp_speed(int16_t speed) const
+int16_t MotoronDrive::clampSpeed(int16_t speed) const
 {
     if (speed > maxSpeed_)
     {
@@ -170,97 +54,322 @@ int16_t MotoronDrive::clamp_speed(int16_t speed) const
     return speed;
 }
 
-void MotoronDrive::raw_front(int16_t motor1, int16_t motor2)
+int16_t MotoronDrive::applyDirection(int16_t speed, int8_t direction) const
 {
-    front_.setSpeed(1, clamp_speed(motor1));
-    front_.setSpeed(2, clamp_speed(motor2));
+    return clampSpeed(speed) * direction;
 }
 
-void MotoronDrive::raw_rear(int16_t motor1, int16_t motor2)
+void MotoronDrive::set_max_speed(int16_t maxSpeed)
 {
-    rear_.setSpeed(1, clamp_speed(motor1));
-    rear_.setSpeed(2, clamp_speed(motor2));
-}
-
-void MotoronDrive::raw_front_motor(uint8_t motor, int16_t speed, bool immediate)
-{
-    if (immediate)
+    if (maxSpeed < 0)
     {
-        front_.setSpeedNow(motor, clamp_speed(speed));
-        return;
+        maxSpeed = -maxSpeed;
     }
 
-    front_.setSpeed(motor, clamp_speed(speed));
+    maxSpeed_ = maxSpeed;
 }
 
-void MotoronDrive::raw_rear_motor(uint8_t motor, int16_t speed, bool immediate)
+int16_t MotoronDrive::get_max_speed() const
 {
-    if (immediate)
+    return maxSpeed_;
+}
+
+void MotoronDrive::set_front_left(int16_t speed)
+{
+    frontLeft_ = clampSpeed(speed);
+    front_.setSpeed(
+        MOTORON_CHANNEL_FRONT_LEFT,
+        applyDirection(frontLeft_, MOTOR_FRONT_LEFT_DIRECTION)
+    );
+}
+
+void MotoronDrive::set_front_right(int16_t speed)
+{
+    frontRight_ = clampSpeed(speed);
+    front_.setSpeed(
+        MOTORON_CHANNEL_FRONT_RIGHT,
+        applyDirection(frontRight_, MOTOR_FRONT_RIGHT_DIRECTION)
+    );
+}
+
+void MotoronDrive::set_rear_left(int16_t speed)
+{
+    rearLeft_ = clampSpeed(speed);
+    rear_.setSpeed(
+        MOTORON_CHANNEL_REAR_LEFT,
+        applyDirection(rearLeft_, MOTOR_REAR_LEFT_DIRECTION)
+    );
+}
+
+void MotoronDrive::set_rear_right(int16_t speed)
+{
+    rearRight_ = clampSpeed(speed);
+    rear_.setSpeed(
+        MOTORON_CHANNEL_REAR_RIGHT,
+        applyDirection(rearRight_, MOTOR_REAR_RIGHT_DIRECTION)
+    );
+}
+
+void MotoronDrive::set_all(
+    int16_t frontLeft,
+    int16_t frontRight,
+    int16_t rearLeft,
+    int16_t rearRight
+)
+{
+    frontLeft_ = clampSpeed(frontLeft);
+    frontRight_ = clampSpeed(frontRight);
+    rearLeft_ = clampSpeed(rearLeft);
+    rearRight_ = clampSpeed(rearRight);
+
+    front_.setSpeed(
+        MOTORON_CHANNEL_FRONT_LEFT,
+        applyDirection(frontLeft_, MOTOR_FRONT_LEFT_DIRECTION)
+    );
+    front_.setSpeed(
+        MOTORON_CHANNEL_FRONT_RIGHT,
+        applyDirection(frontRight_, MOTOR_FRONT_RIGHT_DIRECTION)
+    );
+    rear_.setSpeed(
+        MOTORON_CHANNEL_REAR_LEFT,
+        applyDirection(rearLeft_, MOTOR_REAR_LEFT_DIRECTION)
+    );
+    rear_.setSpeed(
+        MOTORON_CHANNEL_REAR_RIGHT,
+        applyDirection(rearRight_, MOTOR_REAR_RIGHT_DIRECTION)
+    );
+}
+
+void MotoronDrive::get_wheel_speeds(
+    int16_t& frontLeft,
+    int16_t& frontRight,
+    int16_t& rearLeft,
+    int16_t& rearRight
+) const
+{
+    frontLeft = frontLeft_;
+    frontRight = frontRight_;
+    rearLeft = rearLeft_;
+    rearRight = rearRight_;
+}
+
+void MotoronDrive::drive(int16_t vx, int16_t vy, int16_t w)
+{
+    int32_t frontLeft = static_cast<int32_t>(vx) - vy - w;
+    int32_t frontRight = static_cast<int32_t>(vx) + vy + w;
+    int32_t rearLeft = static_cast<int32_t>(vx) + vy - w;
+    int32_t rearRight = static_cast<int32_t>(vx) - vy + w;
+
+    int32_t largest = abs(frontLeft);
+
+    if (abs(frontRight) > largest)
     {
-        rear_.setSpeedNow(motor, clamp_speed(speed));
-        return;
+        largest = abs(frontRight);
     }
 
-    rear_.setSpeed(motor, clamp_speed(speed));
+    if (abs(rearLeft) > largest)
+    {
+        largest = abs(rearLeft);
+    }
+
+    if (abs(rearRight) > largest)
+    {
+        largest = abs(rearRight);
+    }
+
+    if (largest > maxSpeed_ && largest != 0)
+    {
+        frontLeft = frontLeft * maxSpeed_ / largest;
+        frontRight = frontRight * maxSpeed_ / largest;
+        rearLeft = rearLeft * maxSpeed_ / largest;
+        rearRight = rearRight * maxSpeed_ / largest;
+    }
+
+    set_all(
+        static_cast<int16_t>(frontLeft),
+        static_cast<int16_t>(frontRight),
+        static_cast<int16_t>(rearLeft),
+        static_cast<int16_t>(rearRight)
+    );
 }
 
-void MotoronDrive::resend_current_speeds()
+void MotoronDrive::forward(int16_t speed)
 {
-    set_all(currentFrontLeft_, currentFrontRight_, currentRearLeft_, currentRearRight_);
+    drive(speed, 0, 0);
+}
+
+void MotoronDrive::backward(int16_t speed)
+{
+    drive(-speed, 0, 0);
+}
+
+void MotoronDrive::left(int16_t speed)
+{
+    drive(0, -speed, 0);
+}
+
+void MotoronDrive::right(int16_t speed)
+{
+    drive(0, speed, 0);
+}
+
+void MotoronDrive::rotate_left(int16_t speed)
+{
+    drive(0, 0, -speed);
+}
+
+void MotoronDrive::rotate_right(int16_t speed)
+{
+    drive(0, 0, speed);
+}
+
+void MotoronDrive::stop()
+{
+    stop_all();
+}
+
+void MotoronDrive::stop_all()
+{
+    frontLeft_ = 0;
+    frontRight_ = 0;
+    rearLeft_ = 0;
+    rearRight_ = 0;
+
+    front_.setSpeedNow(MOTORON_CHANNEL_FRONT_LEFT, 0);
+    front_.setSpeedNow(MOTORON_CHANNEL_FRONT_RIGHT, 0);
+    rear_.setSpeedNow(MOTORON_CHANNEL_REAR_LEFT, 0);
+    rear_.setSpeedNow(MOTORON_CHANNEL_REAR_RIGHT, 0);
+}
+
+void MotoronDrive::setFrontRaw(int16_t motor1, int16_t motor2, bool immediate)
+{
+    motor1 = clampSpeed(motor1);
+    motor2 = clampSpeed(motor2);
+
+    if (immediate)
+    {
+        front_.setSpeedNow(1, motor1);
+        front_.setSpeedNow(2, motor2);
+    }
+    else
+    {
+        front_.setSpeed(1, motor1);
+        front_.setSpeed(2, motor2);
+    }
+}
+
+void MotoronDrive::setRearRaw(int16_t motor1, int16_t motor2, bool immediate)
+{
+    motor1 = clampSpeed(motor1);
+    motor2 = clampSpeed(motor2);
+
+    if (immediate)
+    {
+        rear_.setSpeedNow(1, motor1);
+        rear_.setSpeedNow(2, motor2);
+    }
+    else
+    {
+        rear_.setSpeed(1, motor1);
+        rear_.setSpeed(2, motor2);
+    }
+}
+
+void MotoronDrive::raw_front(
+    int16_t motor1,
+    int16_t motor2,
+    bool immediate
+)
+{
+    frontLeft_ = clampSpeed(motor1);
+    frontRight_ = clampSpeed(motor2);
+    setFrontRaw(motor1, motor2, immediate);
+}
+
+void MotoronDrive::raw_rear(int16_t motor1, int16_t motor2, bool immediate)
+{
+    rearLeft_ = clampSpeed(motor1);
+    rearRight_ = clampSpeed(motor2);
+    setRearRaw(motor1, motor2, immediate);
+}
+
+void MotoronDrive::raw_front_motor(
+    uint8_t channel,
+    int16_t speed,
+    bool immediate
+)
+{
+    speed = clampSpeed(speed);
+
+    if (channel == 1)
+    {
+        frontLeft_ = speed;
+    }
+    else if (channel == 2)
+    {
+        frontRight_ = speed;
+    }
+
+    if (immediate)
+    {
+        front_.setSpeedNow(channel, speed);
+    }
+    else
+    {
+        front_.setSpeed(channel, speed);
+    }
+}
+
+void MotoronDrive::raw_rear_motor(
+    uint8_t channel,
+    int16_t speed,
+    bool immediate
+)
+{
+    speed = clampSpeed(speed);
+
+    if (channel == 1)
+    {
+        rearLeft_ = speed;
+    }
+    else if (channel == 2)
+    {
+        rearRight_ = speed;
+    }
+
+    if (immediate)
+    {
+        rear_.setSpeedNow(channel, speed);
+    }
+    else
+    {
+        rear_.setSpeed(channel, speed);
+    }
 }
 
 void MotoronDrive::clear_status_flags()
 {
     front_.clearResetFlag();
-    front_.clearMotorFaultUnconditional();
     rear_.clearResetFlag();
+    front_.clearLatchedStatusFlags(0xFFFF);
+    rear_.clearLatchedStatusFlags(0xFFFF);
+    front_.clearMotorFaultUnconditional();
     rear_.clearMotorFaultUnconditional();
 }
 
 void MotoronDrive::print_status(Stream& output)
 {
-    print_controller_status(output, "front", front_);
-    print_controller_status(output, "rear", rear_);
-}
-
-void MotoronDrive::clear_controller_status_flags(MotoronI2C& controller)
-{
-    controller.clearResetFlag();
-    controller.clearMotorFaultUnconditional();
-}
-
-void MotoronDrive::print_controller_status(Stream& output, const char* name, MotoronI2C& controller)
-{
-    const uint16_t statusFlags = controller.getStatusFlags();
-
-    output.print(name);
-    output.print(" addr=0x");
-    output.print(controller.getAddress(), HEX);
-    output.print(" lastError=");
-    output.print(controller.getLastError());
+    output.print("Front Motoron 0x");
+    output.print(front_.getAddress(), HEX);
     output.print(" status=0x");
-    output.print(statusFlags, HEX);
-    output.print(" errorActive=");
-    output.print((statusFlags & (1 << MOTORON_STATUS_FLAG_ERROR_ACTIVE)) ? "1" : "0");
-    output.print(" outputEnabled=");
-    output.print((statusFlags & (1 << MOTORON_STATUS_FLAG_MOTOR_OUTPUT_ENABLED)) ? "1" : "0");
-    output.print(" motorDriving=");
-    output.print((statusFlags & (1 << MOTORON_STATUS_FLAG_MOTOR_DRIVING)) ? "1" : "0");
-    output.print(" noPower=");
-    output.print((statusFlags & (1 << MOTORON_STATUS_FLAG_NO_POWER)) ? "1" : "0");
-    output.print(" fault=");
-    output.println((statusFlags & (1 << MOTORON_STATUS_FLAG_MOTOR_FAULTING)) ? "1" : "0");
+    output.print(front_.getStatusFlags(), HEX);
+    output.print(" lastError=");
+    output.println(front_.getLastError());
 
-    print_motor_status(output, controller, 1);
-    print_motor_status(output, controller, 2);
-}
-
-void MotoronDrive::print_motor_status(Stream& output, MotoronI2C& controller, uint8_t motor)
-{
-    output.print("  M");
-    output.print(motor);
-    output.print(" target=");
-    output.print(controller.getTargetSpeed(motor));
-    output.print(" current=");
-    output.println(controller.getCurrentSpeed(motor));
+    output.print("Rear Motoron 0x");
+    output.print(rear_.getAddress(), HEX);
+    output.print(" status=0x");
+    output.print(rear_.getStatusFlags(), HEX);
+    output.print(" lastError=");
+    output.println(rear_.getLastError());
 }

@@ -54,7 +54,8 @@ void printHelp()
     Serial.println();
     Serial.println("Motor layer test");
     Serial.println("i: layer 1 scan Wire1");
-    Serial.println("p: layer 2 print Motoron status");
+    Serial.println("p: layer 2 clear and print Motoron status");
+    Serial.println("v: print cached wheel speeds");
     Serial.println("f: layer 3 raw front board both channels");
     Serial.println("b: layer 3 raw rear board both channels");
     Serial.println("1: layer 4 front-left wheel");
@@ -63,8 +64,34 @@ void printHelp()
     Serial.println("4: layer 4 rear-right wheel");
     Serial.println("q: front raw M1 setSpeedNow");
     Serial.println("w: front raw M2 setSpeedNow");
+    Serial.println("e: rear raw M1 setSpeedNow");
+    Serial.println("t: rear raw M2 setSpeedNow");
+    Serial.println("g: chassis forward");
+    Serial.println("x: chassis backward");
+    Serial.println("l: chassis left strafe");
     Serial.println("r: layer 5 chassis right strafe");
+    Serial.println("u: chassis rotate left");
+    Serial.println("o: chassis rotate right");
     Serial.println("s: stop");
+}
+
+void printCachedSpeeds()
+{
+    int16_t frontLeft = 0;
+    int16_t frontRight = 0;
+    int16_t rearLeft = 0;
+    int16_t rearRight = 0;
+
+    robot.get_wheel_speeds(frontLeft, frontRight, rearLeft, rearRight);
+
+    Serial.print("Cached wheel speeds FL/FR/RL/RR: ");
+    Serial.print(frontLeft);
+    Serial.print(", ");
+    Serial.print(frontRight);
+    Serial.print(", ");
+    Serial.print(rearLeft);
+    Serial.print(", ");
+    Serial.println(rearRight);
 }
 
 void applyActiveTest()
@@ -99,6 +126,25 @@ void applyActiveTest()
             robot.raw_front_motor(2, TEST_SPEED, true);
             break;
         case 10:
+            robot.raw_rear_motor(1, TEST_SPEED, true);
+            break;
+        case 11:
+            robot.raw_rear_motor(2, TEST_SPEED, true);
+            break;
+        case 12:
+            robot.forward(TEST_SPEED);
+            break;
+        case 13:
+            robot.backward(TEST_SPEED);
+            break;
+        case 14:
+            robot.left(TEST_SPEED);
+            break;
+        case 15:
+            robot.rotate_left(TEST_SPEED);
+            break;
+        case 16:
+            robot.rotate_right(TEST_SPEED);
             break;
         default:
             break;
@@ -117,6 +163,7 @@ void startTest(int testNumber, const char* label)
     Serial.println(label);
 
     applyActiveTest();
+    printCachedSpeeds();
     robot.print_status(Serial);
 }
 
@@ -125,6 +172,7 @@ void stopTest()
     activeTest = 0;
     robot.stop();
     Serial.println("Stop");
+    printCachedSpeeds();
     robot.print_status(Serial);
 }
 
@@ -138,10 +186,13 @@ void setup()
     }
 
     Wire1.begin();
-    robot.begin();
+    const bool motoronReady = robot.begin();
     robot.set_max_speed(MOTOR_MAX_SPEED);
     robot.stop();
 
+    Serial.print("Motoron init: ");
+    Serial.println(motoronReady ? "OK" : "check status/errors");
+    robot.print_status(Serial);
     printHelp();
 }
 
@@ -176,6 +227,9 @@ void loop()
             robot.clear_status_flags();
             robot.print_status(Serial);
             break;
+        case 'v':
+            printCachedSpeeds();
+            break;
         case 'f':
             startTest(1, "raw front board");
             break;
@@ -200,8 +254,29 @@ void loop()
         case 'w':
             startTest(9, "front raw M2 setSpeedNow");
             break;
+        case 'e':
+            startTest(10, "rear raw M1 setSpeedNow");
+            break;
+        case 't':
+            startTest(11, "rear raw M2 setSpeedNow");
+            break;
+        case 'g':
+            startTest(12, "chassis forward");
+            break;
+        case 'x':
+            startTest(13, "chassis backward");
+            break;
+        case 'l':
+            startTest(14, "chassis left strafe");
+            break;
         case 'r':
             startTest(7, "right strafe");
+            break;
+        case 'u':
+            startTest(15, "rotate left");
+            break;
+        case 'o':
+            startTest(16, "rotate right");
             break;
         case 's':
             stopTest();

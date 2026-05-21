@@ -100,7 +100,11 @@ void printHelp()
     Serial.println("  1 - scan Wire1");
     Serial.println("  0 - scan Wire");
     Serial.println("  a - scan both buses");
-    Serial.println("  m - check Motoron addresses 0x10 and 0x11 on Wire1");
+    Serial.print("  m - check Motoron addresses ");
+    printAddress(MOTORON_ADDR_FRONT);
+    Serial.print(" and ");
+    printAddress(MOTORON_ADDR_REAR);
+    Serial.println(" on Wire1");
     Serial.println("  h - show this menu");
 }
 } // namespace

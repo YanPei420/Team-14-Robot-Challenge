@@ -1,6 +1,9 @@
 {
-    "name": "Motors",
+    "name": "MotoronDrive",
     "version": "1.0.0",
+    "description": "Two-Motoron mecanum chassis drive wrapper for Arduino Giga",
+    "frameworks": "arduino",
+    "platforms": "ststm32",
     "build": {
         "includeDir": "include"
     }
