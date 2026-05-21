@@ -33,8 +33,8 @@
 
 | Pin | LED | Description |
 |:----|:----------|:------------|
-| D0 | Red   | Red |
-| D1 | Green   | Red |
+| D32 | Red   | Red |
+| D34 | Green   | Green |
 | GND | GND   | Black |
 
 | Pin | Motor | Description |
