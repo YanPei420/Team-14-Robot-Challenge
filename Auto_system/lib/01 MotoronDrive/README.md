@@ -13,7 +13,10 @@ chassis movement helpers such as `forward()`, `right()`, and `stop_all()`.
 | --- | --- |
 | `include/MotorConfig.h` | Motoron addresses, channels, speed limits, acceleration, deceleration, and motor direction signs. |
 | `include/MotoronDrive.h` | Public `MotoronDrive` API. |
+| `include/MotorEncoder.h` | Public DG01D-E quadrature encoder API. |
 | `src/MotoronDrive.cpp` | Motoron initialization, wheel output, mecanum drive math, stop, raw debug, and status helpers. |
+| `src/MotorEncoder.cpp` | Interrupt-based wheel encoder counting, revolutions, and RPM sampling. |
+| `接线.md` | Motoron, DG01D-E motor, encoder, and Arduino GIGA wiring notes. |
 
 ## Hardware Mapping
 
@@ -30,6 +33,29 @@ The controllers use `Wire1`.
 | Front right | Front | `2` |
 | Rear left | Rear | `1` |
 | Rear right | Rear | `2` |
+
+## Encoder Mapping
+
+DG01D-E encoder pins are read with interrupt handlers on both A and B channels,
+so the default count mode is x4 quadrature counting.
+
+| Wheel | Encoder A pin | Encoder B pin | Direction sign |
+| --- | --- | --- | --- |
+| Front left | `D2` | `D3` | `1` |
+| Front right | `D4` | `D5` | `-1` |
+| Rear left | `D6` | `D7` | `1` |
+| Rear right | `D8` | `D9` | `-1` |
+
+The DG01D-E datasheet gives a `1:48` gear ratio and `6` encoder pulses per
+motor revolution. With x4 quadrature counting, the default output-shaft count
+constant is:
+
+```cpp
+MOTOR_ENCODER_COUNTS_PER_OUTPUT_REV = 6 * 48 * 4; // 1152
+```
+
+If measured wheel counts differ, update `MOTOR_ENCODER_COUNTS_PER_OUTPUT_REV`
+or pass a custom count value to `MotoronDriveEncoders`.
 
 ## Direction Mapping
 
@@ -75,9 +101,11 @@ All normal wheel commands are clamped to `[-maxSpeed, maxSpeed]`.
 #include <Arduino.h>
 
 #include "MotorConfig.h"
+#include "MotorEncoder.h"
 #include "MotoronDrive.h"
 
 MotoronDrive Robot(MOTORON_ADDR_FRONT, MOTORON_ADDR_REAR);
+MotoronDriveEncoders Encoders;
 
 void setup()
 {
@@ -85,6 +113,7 @@ void setup()
     while (!Serial) {}
 
     Robot.begin();
+    Encoders.begin();
 }
 
 void loop()
@@ -159,3 +188,17 @@ When `immediate` is `true`, raw methods use `setSpeedNow()`. Otherwise they use
 | `clear_status_flags()` | Clears reset, latched status, and motor fault flags on both Motoron boards. |
 | `print_status(Stream& output)` | Prints address, status flags, and last I2C error for both boards. |
 
+## Encoder API
+
+| Method | Description |
+| --- | --- |
+| `MotoronDriveEncoders::begin()` | Starts all four encoder interrupt readers. |
+| `reset_counts()` | Resets all four wheel counts to zero. |
+| `get_counts(fl, fr, rl, rr)` | Reads signed x4 quadrature counts for all wheels. |
+| `get_revolutions(fl, fr, rl, rr)` | Converts counts to output-shaft revolutions. |
+| `sample_rpm(fl, fr, rl, rr)` | Samples signed RPM since the previous call. |
+| `front_left()` / `front_right()` / `rear_left()` / `rear_right()` | Access one `MotorEncoder` directly. |
+
+Single-encoder helpers include `read_count()`, `read_and_reset()`,
+`reset_count()`, `read_revolutions()`, `sample_rpm()`,
+`get_counts_per_revolution()`, and `set_counts_per_revolution()`.
