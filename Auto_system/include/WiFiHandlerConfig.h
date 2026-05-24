@@ -26,7 +26,7 @@ constexpr uint16_t BROKER_PORT = 1883;
 // ======================================================
 
 constexpr const char* GROUP_ID = "14";
-constexpr const char* BOARD_ID = "Robot14";
+constexpr const char* BOARD_ID = "PathFinder";
 constexpr const char* SERVER_BOARD_ID = "server";
 
 // ======================================================
