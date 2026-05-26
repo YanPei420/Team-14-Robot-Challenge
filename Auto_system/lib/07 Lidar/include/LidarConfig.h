@@ -2,20 +2,17 @@
 #define LIDAR_CONFIG_H
 
 #include <Arduino.h>
-#include <Wire.h>
 
 // ======================================================
-// I2C
+// UART
+// ! blue to TX0, green to RX0 on Arduino Uno (pins 0 and 1)
 // ======================================================
 
-// TF-Luna default I2C address is 0x10.
-// Motoron front board occupies 0x10, rear board occupies 0x11.
-// Change this to 0x12 (or another free address) after reconfiguring
-// the sensor via Benewake's PC software or config command.
-#define LIDAR_I2C_ADDRESS 0x10
+// Serial port connected to TF-Luna (TX->RX1, RX->TX1)
+#define LIDAR_SERIAL Serial1
 
-// I2C bus used for the Lidar. Wire1 is reserved for Motoron.
-#define LIDAR_WIRE Wire
+// TF-Luna default baud rate
+#define LIDAR_BAUD_RATE 115200
 
 // ======================================================
 // MEASUREMENT
