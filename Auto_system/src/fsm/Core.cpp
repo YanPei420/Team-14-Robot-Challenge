@@ -2,7 +2,7 @@
 
 #include "FSMconfig.h"
 
-RobotFSM::RobotFSM(MotoronDrive& robot)
+RobotFSM::RobotFSM(RobotDrive& robot)
     : robot_(robot),
       safetyState_(SafetyState::Normal),
       missionState_(MissionState::Base),

@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 
-#include "./MotoronDrive.h"
+#include "RobotDrive.h"
 
 enum class SafetyState : uint8_t
 {
@@ -76,7 +76,7 @@ struct RfidTag
 class RobotFSM
 {
 public:
-    explicit RobotFSM(MotoronDrive& robot);
+    explicit RobotFSM(RobotDrive& robot);
 
     void begin();
     void update();
@@ -112,7 +112,7 @@ public:
 private:
     static constexpr uint8_t MAX_SEEDS = 5;
 
-    MotoronDrive& robot_;
+    RobotDrive& robot_;
 
     SafetyState safetyState_;
     MissionState missionState_;
