@@ -11,3 +11,15 @@ time-sensitive, low-level robot hardware:
 - RPC endpoints consumed by the M7 core
 
 Keep networking, MQTT, mission policy, and other high-level behavior on M7.
+
+## TODO: motor PD control
+
+Motor PD control belongs on M4 because it needs encoder feedback and should run
+close to the motor refresh loop.
+
+- [ ] Add encoder speed measurement for each wheel
+- [ ] Track target wheel speed from `m4_motor_drive` and `m4_motor_set_all`
+- [ ] Apply PD correction before sending commands to Motoron
+- [ ] Add tuning constants for proportional and derivative gains
+- [ ] Add simple serial/RPC debug output for target speed, measured speed, and
+  correction value

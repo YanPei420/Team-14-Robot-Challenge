@@ -4,6 +4,7 @@
 
 RobotFSM::RobotFSM(RobotDrive& robot)
     : robot_(robot),
+      navigator_(nullptr),
       safetyState_(SafetyState::Normal),
       missionState_(MissionState::Base),
       baseState_(BaseState::Idle),
@@ -37,6 +38,11 @@ void RobotFSM::update()
     }
 
     updateNormal();
+}
+
+void RobotFSM::setNavigator(RobotNavigation::Navigator* navigator)
+{
+    navigator_ = navigator;
 }
 
 void RobotFSM::updateNormal()
