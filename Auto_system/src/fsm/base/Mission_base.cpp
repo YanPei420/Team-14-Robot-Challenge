@@ -1,6 +1,6 @@
 #include "../../RobotFSM.h"
 
-#include "../Config.h"
+#include "../FSMconfig.h"
 
 void RobotFSM::updateBase()
 {

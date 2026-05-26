@@ -32,14 +32,14 @@ constexpr uint16_t MOTOR_ENCODER_COUNTS_PER_OUTPUT_REV =
     * MOTOR_ENCODER_EDGES_PER_PULSE;
 
 // Encoder pins 
-constexpr uint8_t MOTOR_ENCODER_FRONT_LEFT_A_PIN  = 2;
-constexpr uint8_t MOTOR_ENCODER_FRONT_LEFT_B_PIN  = 3;
-constexpr uint8_t MOTOR_ENCODER_FRONT_RIGHT_A_PIN = 4;
-constexpr uint8_t MOTOR_ENCODER_FRONT_RIGHT_B_PIN = 5;
-constexpr uint8_t MOTOR_ENCODER_REAR_LEFT_A_PIN   = 6;
-constexpr uint8_t MOTOR_ENCODER_REAR_LEFT_B_PIN   = 7;
-constexpr uint8_t MOTOR_ENCODER_REAR_RIGHT_A_PIN  = 8;
-constexpr uint8_t MOTOR_ENCODER_REAR_RIGHT_B_PIN  = 9;
+constexpr uint8_t MOTOR_ENCODER_FRONT_LEFT_A_PIN  = 22;
+constexpr uint8_t MOTOR_ENCODER_FRONT_LEFT_B_PIN  = 23;
+constexpr uint8_t MOTOR_ENCODER_FRONT_RIGHT_A_PIN = 24;
+constexpr uint8_t MOTOR_ENCODER_FRONT_RIGHT_B_PIN = 25;
+constexpr uint8_t MOTOR_ENCODER_REAR_LEFT_A_PIN   = 26;
+constexpr uint8_t MOTOR_ENCODER_REAR_LEFT_B_PIN   = 27;
+constexpr uint8_t MOTOR_ENCODER_REAR_RIGHT_A_PIN  = 28;
+constexpr uint8_t MOTOR_ENCODER_REAR_RIGHT_B_PIN  = 29;
 
 constexpr int8_t MOTOR_ENCODER_FRONT_LEFT_DIRECTION =
     MOTOR_FRONT_LEFT_DIRECTION;

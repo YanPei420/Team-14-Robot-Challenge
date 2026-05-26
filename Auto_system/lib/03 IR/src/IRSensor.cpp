@@ -6,14 +6,12 @@ IRSensor::IRSensor(
 )
 {
     pins = sensorPins;
-    count = sensorCount;
+    count = sensorCount > IR_SENSOR_COUNT ? IR_SENSOR_COUNT : sensorCount;
 
     for (uint8_t i = 0; i < count; i++)
     {
-        readings[i] = false;
+        values[i] = IR_READ_TIMEOUT_US;
     }
-
-    lastPosition = 0.0f;
 }
 
 void IRSensor::begin()
@@ -33,7 +31,32 @@ void IRSensor::update()
 {
     for (uint8_t i = 0; i < count; i++)
     {
-        readings[i] = sensorActive(i);
+        pinMode(pins[i], OUTPUT);
+        digitalWrite(pins[i], HIGH);
+    }
+
+    delayMicroseconds(IR_CHARGE_TIME_US);
+
+    for (uint8_t i = 0; i < count; i++)
+    {
+        pinMode(pins[i], INPUT);
+        values[i] = IR_READ_TIMEOUT_US;
+    }
+
+    const unsigned long startTime = micros();
+
+    while (micros() - startTime < IR_READ_TIMEOUT_US)
+    {
+        const uint16_t elapsedUs =
+            static_cast<uint16_t>(micros() - startTime);
+
+        for (uint8_t i = 0; i < count; i++)
+        {
+            if (values[i] == IR_READ_TIMEOUT_US && digitalRead(pins[i]) == LOW)
+            {
+                values[i] = elapsedUs;
+            }
+        }
     }
 
     if (IR_DEBUG)
@@ -41,67 +64,29 @@ void IRSensor::update()
         Serial.print("[IR] ");
         for (uint8_t i = 0; i < count; i++)
         {
-            Serial.print(readings[i] ? "1" : "0");
+            Serial.print(values[i]);
+            Serial.print('\t');
         }
-        Serial.print("  pos=");
-        Serial.println(getLinePosition());
+        Serial.println();
     }
 }
 
-bool IRSensor::isDetected(uint8_t index)
+uint16_t IRSensor::getValue(uint8_t index)
 {
     if (index >= count)
     {
-        return false;
+        return IR_READ_TIMEOUT_US;
     }
 
-    return readings[index];
+    return values[index];
 }
 
-bool IRSensor::isLineDetected()
+const uint16_t* IRSensor::getValues()
 {
-    for (uint8_t i = 0; i < count; i++)
-    {
-        if (readings[i])
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-float IRSensor::getLinePosition()
-{
-    // Weighted centroid: sensor positions mapped to [-1, +1]
-    float weightedSum = 0.0f;
-    float totalWeight = 0.0f;
-
-    for (uint8_t i = 0; i < count; i++)
-    {
-        if (readings[i])
-        {
-            // Map index [0, count-1] to [-1.0, +1.0]
-            float pos = (2.0f * i / (count - 1)) - 1.0f;
-            weightedSum += pos;
-            totalWeight += 1.0f;
-        }
-    }
-
-    if (totalWeight > 0.0f)
-    {
-        lastPosition = weightedSum / totalWeight;
-    }
-
-    return lastPosition;
+    return values;
 }
 
 uint8_t IRSensor::getCount()
 {
     return count;
-}
-
-bool IRSensor::sensorActive(uint8_t index)
-{
-    return (digitalRead(pins[index]) == IR_LINE_STATE);
 }

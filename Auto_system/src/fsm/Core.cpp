@@ -1,6 +1,6 @@
 #include "../RobotFSM.h"
 
-#include "Config.h"
+#include "FSMconfig.h"
 
 RobotFSM::RobotFSM(MotoronDrive& robot)
     : robot_(robot),

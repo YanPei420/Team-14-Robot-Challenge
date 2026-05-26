@@ -7,18 +7,17 @@
 // SENSOR ARRAY
 // ======================================================
 
-#define IR_SENSOR_COUNT 5
+#define IR_SENSOR_COUNT 9
 
-// Pins left to right: far-left, left, center, right, far-right
-constexpr uint8_t IR_PINS[IR_SENSOR_COUNT] = {40, 41, 42, 43, 44};
+// Pins left to right.
+constexpr uint8_t IR_PINS[IR_SENSOR_COUNT] = {45, 46, 47, 48, 49, 50, 51, 52, 53};
 
 // ======================================================
-// LINE LOGIC
+// RC READ TIMING
 // ======================================================
 
-// HIGH = line detected
-// LOW  = no line
-#define IR_LINE_STATE HIGH
+constexpr uint16_t IR_CHARGE_TIME_US = 15;
+constexpr uint16_t IR_READ_TIMEOUT_US = 1000;
 
 // ======================================================
 // SERIAL DEBUG

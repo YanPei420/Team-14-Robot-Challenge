@@ -41,10 +41,10 @@ so the default count mode is x4 quadrature counting.
 
 | Wheel | Encoder A pin | Encoder B pin | Direction sign |
 | --- | --- | --- | --- |
-| Front left | `D2` | `D3` | `1` |
-| Front right | `D4` | `D5` | `-1` |
-| Rear left | `D6` | `D7` | `1` |
-| Rear right | `D8` | `D9` | `-1` |
+| Front left | `D22` | `D23` | `1` |
+| Front right | `D24` | `D25` | `-1` |
+| Rear left | `D26` | `D27` | `1` |
+| Rear right | `D28` | `D29` | `-1` |
 
 The DG01D-E datasheet gives a `1:48` gear ratio and `6` encoder pulses per
 motor revolution. With x4 quadrature counting, the default output-shaft count

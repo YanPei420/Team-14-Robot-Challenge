@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-#include "../Config.h"
+#include "../FSMconfig.h"
 
 void RobotFSM::updateGrid()
 {

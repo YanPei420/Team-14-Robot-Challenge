@@ -1,303 +1,161 @@
 #include <Arduino.h>
+#include <Motoron.h>
 #include <Wire.h>
 
 #include "MotorConfig.h"
 #include "MotorEncoder.h"
-#include "MotoronDrive.h"
 
 namespace
 {
 constexpr uint32_t SERIAL_BAUD = 115200;
-constexpr int16_t TEST_SPEED = 250;
-constexpr uint32_t TEST_DURATION_MS = 3000;
+constexpr uint32_t PRINT_INTERVAL_MS = 500;
 constexpr uint32_t COMMAND_REFRESH_MS = 100;
-constexpr uint32_t ENCODER_PRINT_MS = 250;
 
-MotoronDrive robot(MOTORON_ADDR_FRONT, MOTORON_ADDR_REAR);
-MotoronDriveEncoders encoders;
+constexpr uint8_t MOTORON_ADDR = MOTORON_ADDR_FRONT;       // 0x10 / 16
+constexpr uint8_t MOTORON_M1_CHANNEL = 1;
+constexpr int16_t TEST_SPEED = 250;
 
-uint8_t activeTest = 0;
-const char* activeLabel = "idle";
-uint32_t testStartedAt = 0;
+MotoronI2C motoron(MOTORON_ADDR);
+MotorEncoder encoder(
+    MOTOR_ENCODER_FRONT_LEFT_A_PIN,
+    MOTOR_ENCODER_FRONT_LEFT_B_PIN,
+    MOTOR_ENCODER_FRONT_LEFT_DIRECTION,
+    MOTOR_ENCODER_COUNTS_PER_OUTPUT_REV
+);
+
+int16_t commandedSpeed = 0;
+uint32_t lastPrintAt = 0;
 uint32_t lastCommandAt = 0;
-uint32_t lastEncoderPrintAt = 0;
-
-void printAddress(uint8_t address)
-{
-    Serial.print("0x");
-
-    if (address < 0x10)
-    {
-        Serial.print('0');
-    }
-
-    Serial.print(address, HEX);
-}
-
-void scanWire1()
-{
-    uint8_t found = 0;
-
-    Serial.println();
-    Serial.println("Wire1 I2C scan");
-
-    for (uint8_t address = 1; address < 127; address++)
-    {
-        Wire1.beginTransmission(address);
-
-        if (Wire1.endTransmission() == 0)
-        {
-            Serial.print("  found ");
-            printAddress(address);
-            Serial.println();
-            found++;
-        }
-    }
-
-    Serial.print("Devices found: ");
-    Serial.println(found);
-}
 
 void printHelp()
 {
     Serial.println();
-    Serial.println("Chassis motor encoder test");
-    Serial.println("i: scan Motoron I2C bus on Wire1");
-    Serial.println("p: print Motoron status");
-    Serial.println("c: print encoder counts/revolutions/RPM");
-    Serial.println("z: reset encoder counts");
-    Serial.println("1: front-left wheel");
-    Serial.println("2: front-right wheel");
-    Serial.println("3: rear-left wheel");
-    Serial.println("4: rear-right wheel");
-    Serial.println("f: chassis forward");
-    Serial.println("x: chassis backward");
-    Serial.println("l: chassis left strafe");
-    Serial.println("r: chassis right strafe");
-    Serial.println("u: chassis rotate left");
-    Serial.println("o: chassis rotate right");
-    Serial.println("s: stop");
-    Serial.println("h or ?: help");
+    Serial.println("Single Motoron M1 encoder test");
+    Serial.println("Target: Motoron address 0x10 / 16, channel M1");
+    Serial.println("Encoder pins: A=D22, B=D23");
+    Serial.println();
+    Serial.println("f: run M1 forward");
+    Serial.println("b: run M1 backward");
+    Serial.println("s: stop M1");
+    Serial.println("r: reset encoder count");
+    Serial.println("p: print one sample now");
+    Serial.println("h or ?: print help");
+    Serial.println();
 }
 
-void printCachedSpeeds()
+void setupMotoron()
 {
-    int16_t frontLeft = 0;
-    int16_t frontRight = 0;
-    int16_t rearLeft = 0;
-    int16_t rearRight = 0;
+    Wire1.begin();
 
-    robot.get_wheel_speeds(frontLeft, frontRight, rearLeft, rearRight);
-
-    Serial.print("Command FL/FR/RL/RR: ");
-    Serial.print(frontLeft);
-    Serial.print(", ");
-    Serial.print(frontRight);
-    Serial.print(", ");
-    Serial.print(rearLeft);
-    Serial.print(", ");
-    Serial.println(rearRight);
+    motoron.setBus(&Wire1);
+    motoron.reinitialize();
+    motoron.disableCrc();
+    motoron.clearResetFlag();
+    motoron.clearLatchedStatusFlags(0xFFFF);
+    motoron.clearMotorFaultUnconditional();
+    motoron.setCommandTimeoutMilliseconds(MOTOR_COMMAND_TIMEOUT_MS);
+    motoron.setMaxAcceleration(MOTORON_M1_CHANNEL, MOTOR_MAX_ACCELERATION);
+    motoron.setMaxDeceleration(MOTORON_M1_CHANNEL, MOTOR_MAX_DECELERATION);
+    motoron.setSpeedNow(MOTORON_M1_CHANNEL, 0);
 }
 
-void printEncoderState()
+void setMotorSpeed(int16_t speed)
 {
-    int32_t countFrontLeft = 0;
-    int32_t countFrontRight = 0;
-    int32_t countRearLeft = 0;
-    int32_t countRearRight = 0;
-    float revFrontLeft = 0.0f;
-    float revFrontRight = 0.0f;
-    float revRearLeft = 0.0f;
-    float revRearRight = 0.0f;
-    float rpmFrontLeft = 0.0f;
-    float rpmFrontRight = 0.0f;
-    float rpmRearLeft = 0.0f;
-    float rpmRearRight = 0.0f;
-
-    encoders.get_counts(
-        countFrontLeft,
-        countFrontRight,
-        countRearLeft,
-        countRearRight
-    );
-    encoders.get_revolutions(
-        revFrontLeft,
-        revFrontRight,
-        revRearLeft,
-        revRearRight
-    );
-    encoders.sample_rpm(
-        rpmFrontLeft,
-        rpmFrontRight,
-        rpmRearLeft,
-        rpmRearRight
-    );
-
-    Serial.print("Encoder count FL/FR/RL/RR: ");
-    Serial.print(countFrontLeft);
-    Serial.print(", ");
-    Serial.print(countFrontRight);
-    Serial.print(", ");
-    Serial.print(countRearLeft);
-    Serial.print(", ");
-    Serial.println(countRearRight);
-
-    Serial.print("Encoder rev FL/FR/RL/RR: ");
-    Serial.print(revFrontLeft, 3);
-    Serial.print(", ");
-    Serial.print(revFrontRight, 3);
-    Serial.print(", ");
-    Serial.print(revRearLeft, 3);
-    Serial.print(", ");
-    Serial.println(revRearRight, 3);
-
-    Serial.print("Encoder RPM FL/FR/RL/RR: ");
-    Serial.print(rpmFrontLeft, 2);
-    Serial.print(", ");
-    Serial.print(rpmFrontRight, 2);
-    Serial.print(", ");
-    Serial.print(rpmRearLeft, 2);
-    Serial.print(", ");
-    Serial.println(rpmRearRight, 2);
-}
-
-void applyActiveTest()
-{
-    switch (activeTest)
+    if (speed > MOTOR_MAX_SPEED)
     {
-        case 1:
-            robot.set_front_left(TEST_SPEED);
-            break;
-        case 2:
-            robot.set_front_right(TEST_SPEED);
-            break;
-        case 3:
-            robot.set_rear_left(TEST_SPEED);
-            break;
-        case 4:
-            robot.set_rear_right(TEST_SPEED);
-            break;
-        case 5:
-            robot.forward(TEST_SPEED);
-            break;
-        case 6:
-            robot.backward(TEST_SPEED);
-            break;
-        case 7:
-            robot.left(TEST_SPEED);
-            break;
-        case 8:
-            robot.right(TEST_SPEED);
-            break;
-        case 9:
-            robot.rotate_left(TEST_SPEED);
-            break;
-        case 10:
-            robot.rotate_right(TEST_SPEED);
-            break;
-        default:
-            break;
+        speed = MOTOR_MAX_SPEED;
     }
+    else if (speed < -MOTOR_MAX_SPEED)
+    {
+        speed = -MOTOR_MAX_SPEED;
+    }
+
+    commandedSpeed = speed;
+    motoron.setSpeed(MOTORON_M1_CHANNEL, commandedSpeed);
+    lastCommandAt = millis();
 }
 
-void startTest(uint8_t testNumber, const char* label)
+void stopMotor()
 {
-    robot.stop();
-    robot.clear_status_flags();
-    encoders.reset_counts();
-
-    activeTest = testNumber;
-    activeLabel = label;
-    testStartedAt = millis();
-    lastCommandAt = 0;
-    lastEncoderPrintAt = 0;
-
-    Serial.println();
-    Serial.print("Start ");
-    Serial.println(activeLabel);
-
-    applyActiveTest();
-    printCachedSpeeds();
-    printEncoderState();
+    commandedSpeed = 0;
+    motoron.setSpeedNow(MOTORON_M1_CHANNEL, 0);
+    lastCommandAt = millis();
 }
 
-void stopTest()
+void printSample()
 {
-    activeTest = 0;
-    activeLabel = "idle";
-    robot.stop();
+    const int32_t count = encoder.read_count();
+    const float revolutions = encoder.read_revolutions();
+    const float rpm = encoder.sample_rpm();
 
-    Serial.println();
-    Serial.println("Stop");
-    printCachedSpeeds();
-    printEncoderState();
-    robot.print_status(Serial);
+    Serial.print("ms=");
+    Serial.print(millis());
+    Serial.print(" | cmd=");
+    Serial.print(commandedSpeed);
+    Serial.print(" | count=");
+    Serial.print(count);
+    Serial.print(" | rev=");
+    Serial.print(revolutions, 3);
+    Serial.print(" | rpm=");
+    Serial.print(rpm, 1);
+    Serial.print(" | motoronLastError=");
+    Serial.println(motoron.getLastError());
 }
 
-void handleCommand(char command)
+void handleSerial()
 {
+    if (!Serial.available())
+    {
+        return;
+    }
+
+    const char command = Serial.read();
+
     switch (command)
     {
-        case 'i':
-            scanWire1();
-            break;
-        case 'p':
-            robot.clear_status_flags();
-            robot.print_status(Serial);
-            break;
-        case 'c':
-            printEncoderState();
-            break;
-        case 'z':
-            encoders.reset_counts();
-            Serial.println("Encoder counts reset");
-            printEncoderState();
-            break;
-        case '1':
-            startTest(1, "front-left wheel");
-            break;
-        case '2':
-            startTest(2, "front-right wheel");
-            break;
-        case '3':
-            startTest(3, "rear-left wheel");
-            break;
-        case '4':
-            startTest(4, "rear-right wheel");
-            break;
         case 'f':
-            startTest(5, "chassis forward");
+            encoder.reset_count();
+            setMotorSpeed(TEST_SPEED);
+            Serial.println("M1 forward.");
             break;
-        case 'x':
-            startTest(6, "chassis backward");
-            break;
-        case 'l':
-            startTest(7, "chassis left strafe");
-            break;
-        case 'r':
-            startTest(8, "chassis right strafe");
-            break;
-        case 'u':
-            startTest(9, "chassis rotate left");
-            break;
-        case 'o':
-            startTest(10, "chassis rotate right");
+        case 'b':
+            encoder.reset_count();
+            setMotorSpeed(-TEST_SPEED);
+            Serial.println("M1 backward.");
             break;
         case 's':
-            stopTest();
+            stopMotor();
+            Serial.println("M1 stopped.");
+            printSample();
+            break;
+        case 'r':
+            encoder.reset_count();
+            Serial.println("Encoder count reset.");
+            printSample();
+            break;
+        case 'p':
+            printSample();
             break;
         case 'h':
         case '?':
             printHelp();
             break;
-        case '\r':
-        case '\n':
-            break;
         default:
-            Serial.print("Unknown command: ");
-            Serial.println(command);
-            printHelp();
             break;
+    }
+}
+
+void refreshMotorCommand()
+{
+    if (commandedSpeed == 0)
+    {
+        return;
+    }
+
+    if (millis() - lastCommandAt >= COMMAND_REFRESH_MS)
+    {
+        motoron.setSpeed(MOTORON_M1_CHANNEL, commandedSpeed);
+        lastCommandAt = millis();
     }
 }
 }
@@ -306,60 +164,41 @@ void setup()
 {
     Serial.begin(SERIAL_BAUD);
 
-    while (!Serial)
+    const uint32_t serialStartMs = millis();
+    while (!Serial && millis() - serialStartMs < 3000)
     {
         ;
     }
 
-    Wire1.begin();
+    setupMotoron();
 
-    const bool motoronReady = robot.begin();
-    const bool encoderReady = encoders.begin();
+    const bool encoderReady = encoder.begin(0);
+    encoder.reset_count();
 
-    robot.set_max_speed(MOTOR_MAX_SPEED);
-    robot.stop();
-
-    Serial.println();
-    Serial.println("Chassis motor encoder test ready");
-    Serial.print("Motoron init: ");
-    Serial.println(motoronReady ? "OK" : "check status/errors");
+    Serial.println("Single encoder test started.");
+    Serial.print("Motoron address: 0x");
+    Serial.print(MOTORON_ADDR, HEX);
+    Serial.println(" / 16");
+    Serial.print("Motoron channel: M1 / ");
+    Serial.println(MOTORON_M1_CHANNEL);
     Serial.print("Encoder init: ");
-    Serial.println(encoderReady ? "OK" : "check interrupt pins");
+    Serial.println(encoderReady ? "OK" : "check interrupt-capable pins D22/D23");
     Serial.print("Counts per output revolution: ");
     Serial.println(MOTOR_ENCODER_COUNTS_PER_OUTPUT_REV);
+    Serial.print("Motoron lastError: ");
+    Serial.println(motoron.getLastError());
 
-    robot.print_status(Serial);
     printHelp();
 }
 
 void loop()
 {
-    const uint32_t now = millis();
+    handleSerial();
+    refreshMotorCommand();
 
-    if (activeTest != 0)
+    if (millis() - lastPrintAt >= PRINT_INTERVAL_MS)
     {
-        if (now - testStartedAt >= TEST_DURATION_MS)
-        {
-            stopTest();
-        }
-        else
-        {
-            if (now - lastCommandAt >= COMMAND_REFRESH_MS)
-            {
-                applyActiveTest();
-                lastCommandAt = now;
-            }
-
-            if (now - lastEncoderPrintAt >= ENCODER_PRINT_MS)
-            {
-                printEncoderState();
-                lastEncoderPrintAt = now;
-            }
-        }
-    }
-
-    while (Serial.available())
-    {
-        handleCommand(static_cast<char>(Serial.read()));
+        printSample();
+        lastPrintAt = millis();
     }
 }

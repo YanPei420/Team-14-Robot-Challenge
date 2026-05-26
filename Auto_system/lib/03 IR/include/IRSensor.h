@@ -10,10 +10,7 @@ private:
     const uint8_t* pins;
     uint8_t count;
 
-    bool readings[IR_SENSOR_COUNT];
-    float lastPosition;
-
-    bool sensorActive(uint8_t index);
+    uint16_t values[IR_SENSOR_COUNT];
 
 public:
     IRSensor(const uint8_t* sensorPins, uint8_t sensorCount);
@@ -23,16 +20,9 @@ public:
     // Call each loop iteration to refresh readings
     void update();
 
-    // True if sensor[index] sees the line
-    bool isDetected(uint8_t index);
-
-    // True if at least one sensor sees the line
-    bool isLineDetected();
-
-    // Weighted centroid position: -1.0 (far left) to +1.0 (far right), 0.0 = centered
-    // Returns last known position when no sensor sees the line
-    float getLinePosition();
-
+    // Raw RC discharge time in microseconds. Timeout returns IR_READ_TIMEOUT_US.
+    uint16_t getValue(uint8_t index);
+    const uint16_t* getValues();
     uint8_t getCount();
 };
 
