@@ -1,85 +1,77 @@
 #include "LidarSensor.h"
 
-LidarSensor::LidarSensor(
-    TwoWire& wireBus,
-    uint8_t sensorAddress
-)
-    : wire(wireBus)
+LidarSensor::LidarSensor(HardwareSerial& serialPort)
+    : serial(serialPort)
 {
-    address = sensorAddress;
-
-    distanceCM = LIDAR_INVALID_DISTANCE;
-    strength = 0;
-    temperature = 0;
+    distanceCM  = LIDAR_INVALID_DISTANCE;
+    strength    = 0;
+    temperature = 0.0f;
 }
 
 void LidarSensor::begin()
 {
-    wire.begin();
+    serial.begin(LIDAR_BAUD_RATE);
 
     if (LIDAR_DEBUG)
     {
-        Serial.print("[Lidar] begin at I2C 0x");
-        Serial.println(address, HEX);
+        Serial.print("[Lidar] UART begin at ");
+        Serial.println(LIDAR_BAUD_RATE);
     }
 }
 
 bool LidarSensor::update()
 {
-    // Request 6 bytes starting from register LIDAR_REG_DIST_L
-    wire.beginTransmission(address);
-    wire.write(LIDAR_REG_DIST_L);
-
-    if (wire.endTransmission(false) != 0)
-    {
-        if (LIDAR_DEBUG)
-        {
-            Serial.println("[Lidar] I2C transmit error");
-        }
+    if (serial.available() < 9)
         return false;
-    }
 
-    uint8_t received = wire.requestFrom(
-        (uint8_t)address,
-        (uint8_t)6
-    );
-
-    if (received != 6)
+    // Scan for frame header 0x59 0x59
+    while (serial.available() >= 9)
     {
-        if (LIDAR_DEBUG)
+        if (serial.peek() != 0x59)
         {
-            Serial.println("[Lidar] incomplete frame");
+            serial.read(); // discard misaligned byte
+            continue;
         }
-        return false;
+
+        uint8_t buf[9];
+        serial.readBytes(buf, 9);
+
+        if (buf[0] != 0x59 || buf[1] != 0x59)
+            continue;
+
+        // Verify checksum (sum of bytes 0-7, take low byte)
+        uint8_t checksum = 0;
+        for (uint8_t i = 0; i < 8; i++) checksum += buf[i];
+        if (checksum != buf[8])
+        {
+            if (LIDAR_DEBUG) Serial.println("[Lidar] checksum error");
+            continue;
+        }
+
+        return parseFrame(buf);
     }
 
-    uint8_t buf[6];
-    for (uint8_t i = 0; i < 6; i++)
-    {
-        buf[i] = wire.read();
-    }
-
-    return parseFrame(buf);
+    return false;
 }
 
 bool LidarSensor::parseFrame(uint8_t* buf)
 {
-    int16_t dist  = (int16_t)(buf[0] | ((uint16_t)buf[1] << 8));
-    uint16_t flux = (uint16_t)(buf[2] | ((uint16_t)buf[3] << 8));
-    int16_t temp  = (int16_t)(buf[4] | ((uint16_t)buf[5] << 8));
+    int16_t  dist = (int16_t)(buf[2] | ((uint16_t)buf[3] << 8));
+    uint16_t amp  = (uint16_t)(buf[4] | ((uint16_t)buf[5] << 8));
+    float    temp = (buf[6] | ((uint16_t)buf[7] << 8)) / 100.0f;
 
-    if (flux < LIDAR_MIN_STRENGTH)
+    if (amp < LIDAR_MIN_STRENGTH)
     {
         if (LIDAR_DEBUG)
         {
             Serial.print("[Lidar] low strength: ");
-            Serial.println(flux);
+            Serial.println(amp);
         }
         return false;
     }
 
-    distanceCM = dist;
-    strength   = flux;
+    distanceCM  = dist;
+    strength    = amp;
     temperature = temp;
 
     if (LIDAR_DEBUG)
@@ -89,28 +81,13 @@ bool LidarSensor::parseFrame(uint8_t* buf)
         Serial.print("cm  str=");
         Serial.print(strength);
         Serial.print("  temp=");
-        Serial.println(temperature / 100.0f);
+        Serial.println(temperature);
     }
 
     return true;
 }
 
-int16_t LidarSensor::getDistanceCM()
-{
-    return distanceCM;
-}
-
-uint16_t LidarSensor::getStrength()
-{
-    return strength;
-}
-
-int16_t LidarSensor::getTemperature()
-{
-    return temperature;
-}
-
-bool LidarSensor::isValid()
-{
-    return (distanceCM != LIDAR_INVALID_DISTANCE);
-}
+int16_t LidarSensor::getDistanceCM()  { return distanceCM; }
+uint16_t LidarSensor::getStrength()   { return strength; }
+float LidarSensor::getTemperature()   { return temperature; }
+bool LidarSensor::isValid()           { return distanceCM != LIDAR_INVALID_DISTANCE; }
