@@ -1,4 +1,5 @@
 # Team-14-Robot-Challenge
+ Explaining the repository structure, required libraries, setup steps, and how to upload/run the code.
 
 | Pin | IR Sensor | Description |
 |:----|:----------|:------------|
