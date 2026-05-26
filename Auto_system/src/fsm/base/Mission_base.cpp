@@ -1,6 +1,6 @@
-#include "../RobotFSM.h"
+#include "../../RobotFSM.h"
 
-#include "Config.h"
+#include "../FSMconfig.h"
 
 void RobotFSM::updateBase()
 {
@@ -129,6 +129,101 @@ void RobotFSM::baseReached()
     {
         emergencyReturn_ = false;
         transitionBase(BaseState::InsideBase);
+    }
+}
+
+void RobotFSM::transitionMission(MissionState nextState)
+{
+    if (missionState_ == nextState)
+    {
+        enterMissionState();
+        logState();
+        return;
+    }
+
+    missionState_ = nextState;
+    stateStartedAt_ = millis();
+
+    enterMissionState();
+    logState();
+}
+
+void RobotFSM::transitionBase(BaseState nextState)
+{
+    const bool missionChanged = missionState_ != MissionState::Base;
+
+    if (missionState_ != MissionState::Base)
+    {
+        missionState_ = MissionState::Base;
+    }
+
+    if (baseState_ == nextState)
+    {
+        if (missionChanged)
+        {
+            stateStartedAt_ = millis();
+        }
+
+        enterBaseState();
+        logState();
+        return;
+    }
+
+    baseState_ = nextState;
+    stateStartedAt_ = millis();
+    enterBaseState();
+    logState();
+}
+
+void RobotFSM::transitionExitBase(ExitBaseState nextState)
+{
+    if (exitBaseState_ == nextState)
+    {
+        return;
+    }
+
+    exitBaseState_ = nextState;
+    stateStartedAt_ = millis();
+    enterExitBaseState();
+    logState();
+}
+
+void RobotFSM::transitionReturn(ReturnState nextState)
+{
+    if (returnState_ == nextState)
+    {
+        return;
+    }
+
+    returnState_ = nextState;
+    stateStartedAt_ = millis();
+    enterReturnState();
+    logState();
+}
+
+void RobotFSM::transitionToReturnHome(bool emergencyReturn)
+{
+    emergencyReturn_ = emergencyReturn_ || emergencyReturn;
+    transitionBase(BaseState::ReturnHome);
+}
+
+void RobotFSM::enterMissionState()
+{
+    switch (missionState_)
+    {
+        case MissionState::Base:
+            enterBaseState();
+            break;
+
+        case MissionState::Grid:
+            gridState_ = GridState::ExploreGrid;
+            enterGridState();
+            break;
+
+        case MissionState::Stranded:
+        case MissionState::Revived:
+            stopRobot();
+            break;
     }
 }
 

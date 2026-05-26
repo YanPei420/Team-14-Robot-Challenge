@@ -1,8 +1,8 @@
-#include "../RobotFSM.h"
+#include "../../RobotFSM.h"
 
 #include <string.h>
 
-#include "Config.h"
+#include "../FSMconfig.h"
 
 void RobotFSM::updateGrid()
 {
@@ -137,6 +137,98 @@ void RobotFSM::plantingMechanismDone()
     {
         transitionGrid(GridState::ExploreGrid);
     }
+}
+
+void RobotFSM::emergencyWarningReceived()
+{
+    if (!isInBaseState() && missionState_ != MissionState::Stranded &&
+        safetyState_ == SafetyState::Normal)
+    {
+        transitionToReturnHome(true);
+    }
+}
+
+void RobotFSM::markStranded()
+{
+    if (!isInBaseState() && safetyState_ == SafetyState::Normal)
+    {
+        transitionMission(MissionState::Stranded);
+    }
+}
+
+void RobotFSM::reviveFromStranded()
+{
+    if (missionState_ == MissionState::Stranded &&
+        safetyState_ == SafetyState::Normal)
+    {
+        transitionMission(MissionState::Revived);
+    }
+}
+
+void RobotFSM::transitionGrid(GridState nextState)
+{
+    const bool missionChanged = missionState_ != MissionState::Grid;
+
+    if (missionState_ != MissionState::Grid)
+    {
+        missionState_ = MissionState::Grid;
+    }
+
+    if (gridState_ == nextState)
+    {
+        if (missionChanged)
+        {
+            stateStartedAt_ = millis();
+        }
+
+        enterGridState();
+        logState();
+        return;
+    }
+
+    gridState_ = nextState;
+    stateStartedAt_ = millis();
+    enterGridState();
+    logState();
+}
+
+void RobotFSM::transitionExplore(ExploreState nextState)
+{
+    if (exploreState_ == nextState)
+    {
+        return;
+    }
+
+    exploreState_ = nextState;
+    stateStartedAt_ = millis();
+    enterExploreState();
+    logState();
+}
+
+void RobotFSM::transitionAlign(AlignState nextState)
+{
+    if (alignState_ == nextState)
+    {
+        return;
+    }
+
+    alignState_ = nextState;
+    stateStartedAt_ = millis();
+    enterAlignState();
+    logState();
+}
+
+void RobotFSM::transitionPlant(PlantState nextState)
+{
+    if (plantState_ == nextState)
+    {
+        return;
+    }
+
+    plantState_ = nextState;
+    stateStartedAt_ = millis();
+    enterPlantState();
+    logState();
 }
 
 void RobotFSM::enterGridState()

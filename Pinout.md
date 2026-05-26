@@ -1,6 +1,3 @@
-# Team-14-Robot-Challenge
- Explaining the repository structure, required libraries, setup steps, and how to upload/run the code.
-
 | Pin | IR Sensor | Description |
 |:----|:----------|:------------|
 | D45 | IR 1   | Chip select |
@@ -18,7 +15,7 @@
 | D13 | SCL   | Chip select |
 | D14 | SDA   | Chip select |
 
-| Pin | Top Board LiDAR | Left to Right 1-6 (facing up) |
+| Pin | LiDAR | Left to Right 1-6 (facing up) |
 |:----|:----------|:------------|
 | 5V | VCC   | White |
 | TX1 | RXD (Pin 2)   | Blue |
@@ -48,21 +45,3 @@
 | D7 | | |
 | D8 | | |
 | D9 | | |
-
-Please edit the motor pinnouts
-
-| Pin | Micromotor | Description |
-|:----|:----------|:------------|
-| D2 | | |
-
-| Pin | SG90 Servo | Description |
-|:----|:----------|:------------|
-| D2 | | |
-
-| Pin | UV Panel | Description |
-|:----|:----------|:------------|
-| D2 | | |
-
-| Pin | Micromotor | Description |
-|:----|:----------|:------------|
-| D2 | | |

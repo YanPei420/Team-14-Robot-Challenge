@@ -1,6 +1,6 @@
 #include "../RobotFSM.h"
 
-#include "Config.h"
+#include "FSMconfig.h"
 
 RobotFSM::RobotFSM(MotoronDrive& robot)
     : robot_(robot),
@@ -125,4 +125,81 @@ bool RobotFSM::hasPendingTag() const
 RfidTag RobotFSM::pendingTag() const
 {
     return pendingTag_;
+}
+
+void RobotFSM::reenterCurrentLeafState()
+{
+    switch (missionState_)
+    {
+        case MissionState::Base:
+            switch (baseState_)
+            {
+                case BaseState::Idle:
+                case BaseState::InsideBase:
+                    stopRobot();
+                    break;
+
+                case BaseState::ExitBase:
+                    enterExitBaseState();
+                    break;
+
+                case BaseState::ReturnHome:
+                    enterReturnState();
+                    break;
+            }
+            break;
+
+        case MissionState::Grid:
+            switch (gridState_)
+            {
+                case GridState::ExploreGrid:
+                    enterExploreState();
+                    break;
+
+                case GridState::Align:
+                    enterAlignState();
+                    break;
+
+                case GridState::Plant:
+                    enterPlantState();
+                    break;
+            }
+            break;
+
+        case MissionState::Stranded:
+        case MissionState::Revived:
+            stopRobot();
+            break;
+    }
+}
+
+void RobotFSM::stopRobot()
+{
+    robot_.stop_all();
+}
+
+void RobotFSM::clearPendingTag()
+{
+    pendingTagValid_ = false;
+    pendingTag_.coordinate[0] = '\0';
+    pendingTag_.fertile = false;
+}
+
+bool RobotFSM::stateElapsed(uint32_t durationMs) const
+{
+    return millis() - stateStartedAt_ >= durationMs;
+}
+
+bool RobotFSM::isInBaseState() const
+{
+    return missionState_ == MissionState::Base &&
+           (baseState_ == BaseState::Idle ||
+            baseState_ == BaseState::InsideBase ||
+            (baseState_ == BaseState::ExitBase &&
+             exitBaseState_ == ExitBaseState::RequestClearance));
+}
+
+bool RobotFSM::isArenaMissionState() const
+{
+    return missionState_ == MissionState::Grid;
 }

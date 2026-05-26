@@ -1,263 +1,204 @@
 #include <Arduino.h>
-#include <MiniMessenger.h>
-#include <string.h>
+#include <Motoron.h>
+#include <Wire.h>
 
-#include "LED.h"
-#include "MotoronDrive.h"
-#include "WiFiHandlerConfig.h"
+#include "MotorConfig.h"
+#include "MotorEncoder.h"
 
-MotoronDrive robot;
-MiniMessenger messenger;
-LED statusLed;
-
-constexpr int16_t DRIVE_FORWARD_SPEED = 500;
-
-bool safetyEnabled = false;
-bool stopped = true;
-bool lastConnectedState = false;
-unsigned long lastStatusPrintMs = 0;
-unsigned long lastRegisterMs = 0;
-unsigned long lastHeartbeatMs = 0;
-char lastMessage[MiniMessenger::kMaxPayloadSize + 1] = "";
-
-void driveForward()
+namespace
 {
-    robot.forward(DRIVE_FORWARD_SPEED);
+constexpr uint32_t SERIAL_BAUD = 115200;
+constexpr uint32_t PRINT_INTERVAL_MS = 500;
+constexpr uint32_t COMMAND_REFRESH_MS = 100;
+
+constexpr uint8_t MOTORON_ADDR = MOTORON_ADDR_FRONT;       // 0x10 / 16
+constexpr uint8_t MOTORON_M1_CHANNEL = 1;
+constexpr int16_t TEST_SPEED = 250;
+
+MotoronI2C motoron(MOTORON_ADDR);
+MotorEncoder encoder(
+    MOTOR_ENCODER_FRONT_LEFT_A_PIN,
+    MOTOR_ENCODER_FRONT_LEFT_B_PIN,
+    MOTOR_ENCODER_FRONT_LEFT_DIRECTION,
+    MOTOR_ENCODER_COUNTS_PER_OUTPUT_REV
+);
+
+int16_t commandedSpeed = 0;
+uint32_t lastPrintAt = 0;
+uint32_t lastCommandAt = 0;
+
+void printHelp()
+{
+    Serial.println();
+    Serial.println("Single Motoron M1 encoder test");
+    Serial.println("Target: Motoron address 0x10 / 16, channel M1");
+    Serial.println("Encoder pins: A=D22, B=D23");
+    Serial.println();
+    Serial.println("f: run M1 forward");
+    Serial.println("b: run M1 backward");
+    Serial.println("s: stop M1");
+    Serial.println("r: reset encoder count");
+    Serial.println("p: print one sample now");
+    Serial.println("h or ?: print help");
+    Serial.println();
 }
 
-void stopRobot()
+void setupMotoron()
 {
-    robot.stop_all();
+    Wire1.begin();
+
+    motoron.setBus(&Wire1);
+    motoron.reinitialize();
+    motoron.disableCrc();
+    motoron.clearResetFlag();
+    motoron.clearLatchedStatusFlags(0xFFFF);
+    motoron.clearMotorFaultUnconditional();
+    motoron.setCommandTimeoutMilliseconds(MOTOR_COMMAND_TIMEOUT_MS);
+    motoron.setMaxAcceleration(MOTORON_M1_CHANNEL, MOTOR_MAX_ACCELERATION);
+    motoron.setMaxDeceleration(MOTORON_M1_CHANNEL, MOTOR_MAX_DECELERATION);
+    motoron.setSpeedNow(MOTORON_M1_CHANNEL, 0);
 }
 
-bool messageContains(const char* token)
+void setMotorSpeed(int16_t speed)
 {
-    return strstr(lastMessage, token) != nullptr;
-}
-
-bool shouldForceStopFromMessage()
-{
-    return
-        messageContains("type=stop")
-        ||
-        messageContains("type=emergency")
-        ||
-        messageContains("type=disable")
-        ||
-        messageContains("enable=0");
-}
-
-bool movementEnabled()
-{
-    return
-        safetyEnabled
-        &&
-        lastHeartbeatMs != 0
-        &&
-        (millis() - lastHeartbeatMs) <= WIFI_HEARTBEAT_TIMEOUT_MS
-        &&
-        !shouldForceStopFromMessage();
-}
-
-void onMessage(
-    const MessageMetadata& metadata,
-    const uint8_t* payload,
-    size_t length
-)
-{
-    (void) metadata;
-
-    const size_t copyLength =
-        (length < MiniMessenger::kMaxPayloadSize)
-        ?
-        length
-        :
-        MiniMessenger::kMaxPayloadSize;
-
-    memcpy(lastMessage, payload, copyLength);
-    lastMessage[copyLength] = '\0';
-
-    if (messageContains("type=heartbeat"))
+    if (speed > MOTOR_MAX_SPEED)
     {
-        lastHeartbeatMs = millis();
-
-        if (messageContains("enable=1"))
-        {
-            safetyEnabled = true;
-        }
-        else if (messageContains("enable=0"))
-        {
-            safetyEnabled = false;
-            Serial.println("SAFETY: heartbeat disabled");
-        }
+        speed = MOTOR_MAX_SPEED;
+    }
+    else if (speed < -MOTOR_MAX_SPEED)
+    {
+        speed = -MOTOR_MAX_SPEED;
     }
 
-    if (
-        messageContains("type=stop")
-        ||
-        messageContains("type=emergency enabled=true")
-        ||
-        messageContains("type=disable enabled=false")
-    )
-    {
-        safetyEnabled = false;
-        Serial.print("SAFETY: stop command received, message=");
-        Serial.println(lastMessage);
-    }
+    commandedSpeed = speed;
+    motoron.setSpeed(MOTORON_M1_CHANNEL, commandedSpeed);
+    lastCommandAt = millis();
 }
 
-void sendRegister()
+void stopMotor()
 {
-    if (
-        lastRegisterMs != 0
-        &&
-        (millis() - lastRegisterMs) < WIFI_REGISTER_INTERVAL_MS
-    )
+    commandedSpeed = 0;
+    motoron.setSpeedNow(MOTORON_M1_CHANNEL, 0);
+    lastCommandAt = millis();
+}
+
+void printSample()
+{
+    const int32_t count = encoder.read_count();
+    const float revolutions = encoder.read_revolutions();
+    const float rpm = encoder.sample_rpm();
+
+    Serial.print("ms=");
+    Serial.print(millis());
+    Serial.print(" | cmd=");
+    Serial.print(commandedSpeed);
+    Serial.print(" | count=");
+    Serial.print(count);
+    Serial.print(" | rev=");
+    Serial.print(revolutions, 3);
+    Serial.print(" | rpm=");
+    Serial.print(rpm, 1);
+    Serial.print(" | motoronLastError=");
+    Serial.println(motoron.getLastError());
+}
+
+void handleSerial()
+{
+    if (!Serial.available())
     {
         return;
     }
 
-    char payload[96];
+    const char command = Serial.read();
 
-    snprintf(
-        payload,
-        sizeof(payload),
-        "type=register team_id=%s board_id=%s",
-        GROUP_ID,
-        BOARD_ID
-    );
-
-    if (messenger.sendToBoard(SERVER_BOARD_ID, payload))
+    switch (command)
     {
-        lastRegisterMs = millis();
+        case 'f':
+            encoder.reset_count();
+            setMotorSpeed(TEST_SPEED);
+            Serial.println("M1 forward.");
+            break;
+        case 'b':
+            encoder.reset_count();
+            setMotorSpeed(-TEST_SPEED);
+            Serial.println("M1 backward.");
+            break;
+        case 's':
+            stopMotor();
+            Serial.println("M1 stopped.");
+            printSample();
+            break;
+        case 'r':
+            encoder.reset_count();
+            Serial.println("Encoder count reset.");
+            printSample();
+            break;
+        case 'p':
+            printSample();
+            break;
+        case 'h':
+        case '?':
+            printHelp();
+            break;
+        default:
+            break;
     }
 }
 
-void printConnectionStatus()
+void refreshMotorCommand()
 {
-    const bool connected = messenger.isConnected();
-
-    if (connected == lastConnectedState)
+    if (commandedSpeed == 0)
     {
         return;
     }
 
-    lastConnectedState = connected;
-
-    if (connected)
+    if (millis() - lastCommandAt >= COMMAND_REFRESH_MS)
     {
-        Serial.print("WiFi connected, local IP: ");
-        Serial.println(WiFi.localIP());
+        motoron.setSpeed(MOTORON_M1_CHANNEL, commandedSpeed);
+        lastCommandAt = millis();
     }
-    else
-    {
-        Serial.println("WiFi disconnected");
-    }
+}
 }
 
 void setup()
 {
-    Serial.begin(115200);
+    Serial.begin(SERIAL_BAUD);
 
-    while (!Serial)
+    const uint32_t serialStartMs = millis();
+    while (!Serial && millis() - serialStartMs < 3000)
     {
+        ;
     }
 
-    robot.begin();
-    statusLed.begin();
-    stopRobot();
+    setupMotoron();
 
-    Serial.println("WiFi enable-gated drive ready");
-    Serial.print("Target SSID: ");
-    Serial.println(WIFI_SSID);
-    Serial.print("MQTT broker: ");
-    Serial.print(BROKER_HOST);
-    Serial.print(":");
-    Serial.println(BROKER_PORT);
-    Serial.print("Board ID: ");
-    Serial.println(BOARD_ID);
+    const bool encoderReady = encoder.begin(0);
+    encoder.reset_count();
 
-    messenger.onMessage(onMessage);
-    messenger.begin(
-        WIFI_SSID,
-        WIFI_PASSWORD,
-        BROKER_HOST,
-        BROKER_PORT,
-        GROUP_ID,
-        BOARD_ID
-    );
+    Serial.println("Single encoder test started.");
+    Serial.print("Motoron address: 0x");
+    Serial.print(MOTORON_ADDR, HEX);
+    Serial.println(" / 16");
+    Serial.print("Motoron channel: M1 / ");
+    Serial.println(MOTORON_M1_CHANNEL);
+    Serial.print("Encoder init: ");
+    Serial.println(encoderReady ? "OK" : "check interrupt-capable pins D22/D23");
+    Serial.print("Counts per output revolution: ");
+    Serial.println(MOTOR_ENCODER_COUNTS_PER_OUTPUT_REV);
+    Serial.print("Motoron lastError: ");
+    Serial.println(motoron.getLastError());
 
-    stopRobot();
+    printHelp();
 }
 
 void loop()
 {
-    messenger.loop();
-    sendRegister();
-    printConnectionStatus();
+    handleSerial();
+    refreshMotorCommand();
 
-    if (
-        safetyEnabled
-        &&
-        lastHeartbeatMs != 0
-        &&
-        (millis() - lastHeartbeatMs) > WIFI_HEARTBEAT_TIMEOUT_MS
-    )
+    if (millis() - lastPrintAt >= PRINT_INTERVAL_MS)
     {
-        safetyEnabled = false;
-        Serial.println("SAFETY: heartbeat timeout");
+        printSample();
+        lastPrintAt = millis();
     }
-
-    const bool enabled = movementEnabled();
-
-    if (enabled)
-    {
-        statusLed.showNormal();
-    }
-    else
-    {
-        statusLed.showEmergency();
-    }
-
-    if (enabled)
-    {
-        if (stopped)
-        {
-            Serial.println("Safety enabled: driving forward");
-        }
-
-        stopped = false;
-        driveForward();
-    }
-    else
-    {
-        if (!stopped)
-        {
-            Serial.print("Safety disabled: stopping");
-
-            if (lastMessage[0] != '\0')
-            {
-                Serial.print(", message=");
-                Serial.print(lastMessage);
-            }
-
-            Serial.println();
-        }
-
-        stopped = true;
-        stopRobot();
-    }
-
-    if ((millis() - lastStatusPrintMs) >= 5000)
-    {
-        lastStatusPrintMs = millis();
-        Serial.print("Status: ");
-        Serial.print(enabled ? "FORWARD" : "STOPPED");
-        Serial.print(", Safety ");
-        Serial.print(safetyEnabled ? "ENABLED" : "DISABLED");
-        Serial.print(", WiFi ");
-        Serial.println(messenger.isConnected() ? "OK" : "NOT CONNECTED");
-    }
-
-    delay(50);
 }

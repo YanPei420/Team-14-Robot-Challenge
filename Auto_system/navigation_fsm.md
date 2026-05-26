@@ -1,22 +1,30 @@
 # Term 3 Challenge Hierarchical FSM
 
-This FSM is declared in `src/RobotFSM.h` and implemented under `src/fsm/`.
+This document is the short reference for the current hierarchical FSM. The detailed explanation is in `FSM_STRUCTURE.md`.
 
-The mission layer now has one extra level: `Base` and `Grid`.
+The FSM is declared in:
 
-Implementation files are split by layer under `src/fsm/`:
+```text
+src/RobotFSM.h
+```
+
+The implementation is split by layer:
 
 ```text
 src/fsm/
+|-- Config.h
 |-- Core.cpp
-|-- BaseLayer.cpp
-|-- GridLayer.cpp
-|-- Transitions.cpp
 |-- Names.cpp
-`-- Config.h
+|-- Safety.cpp
+|-- base/
+|   `-- Mission_base.cpp
+`-- grid/
+    `-- Mission_grid.cpp
 ```
 
 ![Term 3 Robot Hierarchical FSM](docs/hfsm_diagram.svg)
+
+## State Tree
 
 ```text
 Robot
@@ -54,13 +62,13 @@ Robot
     `-- Revived
 ```
 
-## State Diagram
+## Mermaid Diagram
 
 ```mermaid
 stateDiagram-v2
     [*] --> Normal
-    Normal --> EmergencyStop: kill switch
-    EmergencyStop --> Normal: kill switch released
+    Normal --> EmergencyStop: triggerEmergencyStop()
+    EmergencyStop --> Normal: clearEmergencyStop()
 
     state Normal {
         [*] --> Base
@@ -125,21 +133,18 @@ stateDiagram-v2
 
 ## Why This Split
 
-The robot map has two major regions:
+The software now mirrors the physical challenge layout:
 
-- `Base`: start area, exit tunnel, entry tunnel, and final collection.
-- `Grid`: 2.5 m x 2.5 m RFID planting arena.
-
-So the software now matches the physical layout:
-
-```text
-MissionState = where the robot is operating
-BaseState    = base-side task phase
-GridState    = grid-side task phase
-SubState     = local action inside that phase
-```
+| Layer | Meaning |
+|---|---|
+| `SafetyState` | Highest-priority emergency stop layer |
+| `MissionState::Base` | Start area, exit tunnel, return tunnel, and final base state |
+| `MissionState::Grid` | RFID planting arena |
+| Local substates | Small action phases inside Base or Grid |
 
 ## Serial Test Events
+
+These events are the intended FSM test inputs if `RobotFSM` is connected from `main.cpp`:
 
 ```text
 s  start mission
@@ -161,3 +166,7 @@ Example:
 ```text
 s c d o a f e o b
 ```
+
+## Current Firmware Note
+
+The current `src/main.cpp` does not call `RobotFSM` yet. It currently runs the WiFi/MQTT heartbeat-gated forward-drive program.
