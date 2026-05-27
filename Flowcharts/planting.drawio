@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net">
   <diagram name="Page-1" id="TS7OVoawT3sNaA5ek6Hv">
-    <mxGraphModel dx="610" dy="420" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="1437" dy="990" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -18,11 +18,84 @@
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="18pl1XvSWPBuDtBrX6_s-2" parent="1" style="rhombus;whiteSpace=wrap;html=1;" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;Does All 9 IR Pins Read Low?&lt;/font&gt;" vertex="1">
+        <mxCell id="jVVAS770Sz8itgLeqfys-2" edge="1" parent="1" source="18pl1XvSWPBuDtBrX6_s-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="jVVAS770Sz8itgLeqfys-1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="jVVAS770Sz8itgLeqfys-6" connectable="0" parent="jVVAS770Sz8itgLeqfys-2" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="Yes" vertex="1">
+          <mxGeometry relative="1" x="-0.2448" y="-1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="18pl1XvSWPBuDtBrX6_s-2" parent="1" style="rhombus;whiteSpace=wrap;html=1;" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;Does All 9 IR Pins Read High?&lt;/font&gt;" vertex="1">
           <mxGeometry height="100" width="105" x="22.5" y="110" as="geometry" />
         </mxCell>
         <mxCell id="18pl1XvSWPBuDtBrX6_s-4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;Line Following Algorithm&lt;/font&gt;" vertex="1">
           <mxGeometry height="30" width="110" x="190" y="145" as="geometry" />
+        </mxCell>
+        <mxCell id="jVVAS770Sz8itgLeqfys-5" edge="1" parent="1" source="jVVAS770Sz8itgLeqfys-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="jVVAS770Sz8itgLeqfys-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="jVVAS770Sz8itgLeqfys-1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;Go Back Set Distance By Encoder&lt;/font&gt;" vertex="1">
+          <mxGeometry height="40" width="115" x="17.5" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="jVVAS770Sz8itgLeqfys-8" edge="1" parent="1" source="jVVAS770Sz8itgLeqfys-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="75" y="480" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jVVAS770Sz8itgLeqfys-9" connectable="0" parent="jVVAS770Sz8itgLeqfys-8" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="Yes" vertex="1">
+          <mxGeometry relative="1" x="-0.2303" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jVVAS770Sz8itgLeqfys-17" edge="1" parent="1" source="jVVAS770Sz8itgLeqfys-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="jVVAS770Sz8itgLeqfys-16">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="jVVAS770Sz8itgLeqfys-18" connectable="0" parent="jVVAS770Sz8itgLeqfys-17" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="No" vertex="1">
+          <mxGeometry relative="1" x="-0.1189" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jVVAS770Sz8itgLeqfys-3" parent="1" style="rhombus;whiteSpace=wrap;html=1;" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;Can RFID Reader Read RFID Tag?&lt;/font&gt;" vertex="1">
+          <mxGeometry height="110" width="102.5" x="23.75" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="jVVAS770Sz8itgLeqfys-7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Control Micro Motor To Spin 180° Using Encoders" vertex="1">
+          <mxGeometry height="60" width="120" x="15" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="jVVAS770Sz8itgLeqfys-11" edge="1" parent="1" source="jVVAS770Sz8itgLeqfys-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="jVVAS770Sz8itgLeqfys-7">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="75" y="610" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jVVAS770Sz8itgLeqfys-13" connectable="0" parent="jVVAS770Sz8itgLeqfys-11" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="No" vertex="1">
+          <mxGeometry relative="1" x="-0.1481" y="4" as="geometry">
+            <mxPoint x="-4" y="-1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jVVAS770Sz8itgLeqfys-20" edge="1" parent="1" source="jVVAS770Sz8itgLeqfys-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="239.9999999999999" y="410.0000000000001" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jVVAS770Sz8itgLeqfys-21" connectable="0" parent="jVVAS770Sz8itgLeqfys-20" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="Yes" vertex="1">
+          <mxGeometry relative="1" x="0.3481" y="-1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jVVAS770Sz8itgLeqfys-10" parent="1" style="rhombus;whiteSpace=wrap;html=1;" value="Fertile?" vertex="1">
+          <mxGeometry height="80" width="80" x="35" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="jVVAS770Sz8itgLeqfys-19" edge="1" parent="1" source="jVVAS770Sz8itgLeqfys-16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.458;entryY=1.01;entryDx=0;entryDy=0;entryPerimeter=0;" target="18pl1XvSWPBuDtBrX6_s-4">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="240" y="190" />
+              <mxPoint x="240" y="190" />
+            </Array>
+            <mxPoint x="240" y="180" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jVVAS770Sz8itgLeqfys-16" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Keep Moving In Straight Direction" vertex="1">
+          <mxGeometry height="45" width="100" x="190" y="362.5" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
