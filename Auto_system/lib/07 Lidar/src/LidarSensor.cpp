@@ -3,9 +3,10 @@
 LidarSensor::LidarSensor(HardwareSerial& serialPort)
     : serial(serialPort)
 {
-    distanceCM  = LIDAR_INVALID_DISTANCE;
-    strength    = 0;
-    temperature = 0.0f;
+    distanceCM   = LIDAR_INVALID_DISTANCE;
+    strength     = 0;
+    temperature  = 0.0f;
+    lastUpdateMs = 0;
 }
 
 void LidarSensor::begin()
@@ -70,9 +71,10 @@ bool LidarSensor::parseFrame(uint8_t* buf)
         return false;
     }
 
-    distanceCM  = dist;
-    strength    = amp;
-    temperature = temp;
+    distanceCM   = dist;
+    strength     = amp;
+    temperature  = temp;
+    lastUpdateMs = millis();
 
     if (LIDAR_DEBUG)
     {
@@ -87,7 +89,8 @@ bool LidarSensor::parseFrame(uint8_t* buf)
     return true;
 }
 
-int16_t LidarSensor::getDistanceCM()  { return distanceCM; }
-uint16_t LidarSensor::getStrength()   { return strength; }
-float LidarSensor::getTemperature()   { return temperature; }
-bool LidarSensor::isValid()           { return distanceCM != LIDAR_INVALID_DISTANCE; }
+int16_t       LidarSensor::getDistanceCM()   { return distanceCM; }
+uint16_t      LidarSensor::getStrength()     { return strength; }
+float         LidarSensor::getTemperature()  { return temperature; }
+unsigned long LidarSensor::getLastUpdateMs() { return lastUpdateMs; }
+bool          LidarSensor::isValid()         { return distanceCM != LIDAR_INVALID_DISTANCE; }
