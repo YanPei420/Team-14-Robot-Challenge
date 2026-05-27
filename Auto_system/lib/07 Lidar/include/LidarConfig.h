@@ -4,30 +4,32 @@
 #include <Arduino.h>
 
 // ======================================================
-// UART
-// ! blue to TX0, green to RX0 on Arduino Uno (pins 0 and 1)
+// UART — Arduino GIGA R1
+// Board labels are offset by 1 from Serial object number.
+//   LIDAR 1 TX -> pin 19 (board RX1) -> Serial2
+//   LIDAR 2 TX -> pin 17 (board RX2) -> Serial3
+//   LIDAR 3 TX -> pin 15 (board RX3) -> Serial4
+//   All LIDARs: GND -> GND, 5V -> 5V
 // ======================================================
 
-// Serial port connected to TF-Luna (TX->RX1, RX->TX1)
-#define LIDAR_SERIAL Serial1
+#define LIDAR_SERIAL_1 Serial2
+#define LIDAR_SERIAL_2 Serial3
+#define LIDAR_SERIAL_3 Serial4
 
-// TF-Luna default baud rate
 #define LIDAR_BAUD_RATE 115200
 
 // ======================================================
 // MEASUREMENT
 // ======================================================
 
-// Minimum signal strength to treat a reading as valid
-#define LIDAR_MIN_STRENGTH 100
-
-// Distance returned when no valid measurement is available (cm)
+#define LIDAR_MIN_STRENGTH   100
 #define LIDAR_INVALID_DISTANCE -1
 
 // ======================================================
 // SERIAL DEBUG
 // ======================================================
 
-#define LIDAR_DEBUG false
+#define LIDAR_DEBUG          false
+#define LIDAR_PRINT_INTERVAL_MS 100
 
 #endif

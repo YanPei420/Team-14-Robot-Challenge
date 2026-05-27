@@ -12,9 +12,10 @@ class LidarSensor
 private:
     HardwareSerial& serial;
 
-    int16_t  distanceCM;
-    uint16_t strength;
-    float    temperature;
+    int16_t       distanceCM;
+    uint16_t      strength;
+    float         temperature;
+    unsigned long lastUpdateMs;
 
     bool parseFrame(uint8_t* buf);
 
@@ -23,15 +24,16 @@ public:
 
     void begin();
 
-    // Read and parse one frame from the serial buffer.
-    // Returns true if a valid frame with sufficient signal strength was found.
+    // Poll the UART buffer and parse one frame.
+    // Returns true if a new valid frame was received this call.
     bool update();
 
-    int16_t  getDistanceCM();
-    uint16_t getStrength();
-    float    getTemperature();
+    int16_t       getDistanceCM();
+    uint16_t      getStrength();
+    float         getTemperature();
+    unsigned long getLastUpdateMs();
 
-    // True if the last update() returned a valid reading
+    // True once at least one valid reading has been received
     bool isValid();
 };
 
