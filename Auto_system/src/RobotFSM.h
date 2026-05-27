@@ -4,6 +4,11 @@
 
 #include "RobotDrive.h"
 
+namespace RobotNavigation
+{
+class Navigator;
+}
+
 enum class SafetyState : uint8_t
 {
     Normal,
@@ -80,6 +85,7 @@ public:
 
     void begin();
     void update();
+    void setNavigator(RobotNavigation::Navigator* navigator);
 
     void startMission();
     void exitClearanceReceived();
@@ -113,6 +119,7 @@ private:
     static constexpr uint8_t MAX_SEEDS = 5;
 
     RobotDrive& robot_;
+    RobotNavigation::Navigator* navigator_;
 
     SafetyState safetyState_;
     MissionState missionState_;
@@ -135,11 +142,9 @@ private:
     void updateNormal();
     void updateBase();
     void updateGrid();
-    void updateExitBase();
     void updateExploreGrid();
     void updateAlign();
     void updatePlant();
-    void updateReturnHome();
     void updateRevived();
 
     void transitionSafety(SafetyState nextState);
@@ -170,7 +175,6 @@ private:
     bool isArenaMissionState() const;
     const char* missionStateName(MissionState state) const;
     const char* baseStateName(BaseState state) const;
-    const char* gridStateName(GridState state) const;
     const char* exitBaseStateName(ExitBaseState state) const;
     const char* exploreStateName(ExploreState state) const;
     const char* alignStateName(AlignState state) const;
