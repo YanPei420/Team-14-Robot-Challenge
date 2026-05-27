@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net">
   <diagram name="Page-1" id="HCsZFmg9D6Sy5dQqfxmk">
-    <mxGraphModel dx="694" dy="478" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="745" dy="513" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -27,8 +27,11 @@
         <mxCell id="gkGTuUxesJK7F2TgqAVy-4" parent="1" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;" value="&lt;font style=&quot;font-size: 9px;&quot;&gt;Get IR Pin Reading&lt;/font&gt;" vertex="1">
           <mxGeometry height="50" width="105" x="62.5" y="180" as="geometry" />
         </mxCell>
-        <mxCell id="gkGTuUxesJK7F2TgqAVy-6" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="PD controller for line following" vertex="1">
-          <mxGeometry height="40" width="120" x="110" y="350" as="geometry" />
+        <mxCell id="gkGTuUxesJK7F2TgqAVy-14" edge="1" parent="1" source="gkGTuUxesJK7F2TgqAVy-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gkGTuUxesJK7F2TgqAVy-13">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gkGTuUxesJK7F2TgqAVy-6" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="PD Controller for line following" vertex="1">
+          <mxGeometry height="40" width="120" x="110" y="340" as="geometry" />
         </mxCell>
         <mxCell id="gkGTuUxesJK7F2TgqAVy-8" edge="1" parent="1" source="gkGTuUxesJK7F2TgqAVy-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="gkGTuUxesJK7F2TgqAVy-6">
           <mxGeometry relative="1" as="geometry">
@@ -40,11 +43,28 @@
         </mxCell>
         <mxCell id="gkGTuUxesJK7F2TgqAVy-10" connectable="0" parent="gkGTuUxesJK7F2TgqAVy-8" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font style=&quot;font-size: 9px;&quot;&gt;Target placing&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size: 9px;&quot;&gt;(Centre 5 pins on line)&lt;/font&gt;&lt;/div&gt;" vertex="1">
           <mxGeometry relative="1" x="-0.6987" as="geometry">
-            <mxPoint as="offset" />
+            <mxPoint y="2" as="offset" />
           </mxGeometry>
         </mxCell>
         <mxCell id="gkGTuUxesJK7F2TgqAVy-7" parent="1" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;IIC&amp;nbsp;&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;Sent by Master&lt;/font&gt;&lt;/div&gt;" vertex="1">
           <mxGeometry height="50" width="100" x="170" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="gkGTuUxesJK7F2TgqAVy-15" edge="1" parent="1" source="gkGTuUxesJK7F2TgqAVy-13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="40" y="430" />
+              <mxPoint x="40" y="310" />
+            </Array>
+            <mxPoint x="170" y="310" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="gkGTuUxesJK7F2TgqAVy-16" connectable="0" parent="gkGTuUxesJK7F2TgqAVy-15" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="Loop&lt;div&gt;&lt;br&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.0568" y="2" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="gkGTuUxesJK7F2TgqAVy-13" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="PWM Output Applied To Motors Shields" vertex="1">
+          <mxGeometry height="60" width="120" x="110" y="400" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
