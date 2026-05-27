@@ -4,8 +4,8 @@
 
 namespace RobotNavigation
 {
-constexpr uint8_t GRID_COLUMNS = 4;
-constexpr uint8_t GRID_ROWS = 4;
+constexpr uint8_t GRID_COLUMNS = 9;
+constexpr uint8_t GRID_ROWS = 9;
 constexpr uint8_t RFID_UID_MAX_LENGTH = 24;
 
 enum class SoilStatus : uint8_t

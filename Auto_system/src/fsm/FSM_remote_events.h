@@ -22,7 +22,12 @@ struct RemoteEvents
     bool revive = false;
     bool rfid = false;
     bool rfidFertile = false;
+    bool rfidAlreadyPlanted = false;
+    bool soilReply = false;
+    bool airlockReply = false;
+    bool airlockAccepted = false;
     char rfidCoordinate[4] = "";
+    char rfidTagId[24] = "";
 };
 
 class RemoteMessageParser
@@ -37,10 +42,21 @@ private:
     char lastMessage_[MiniMessenger::kMaxPayloadSize + 1] = "";
 
     bool messageContains(const char* token) const;
+    bool messageFieldIsTruthy(const char* key) const;
     void copyCoordinateFromMessage(
         char* destination,
         size_t destinationSize
     ) const;
+    void copyFieldFromMessage(
+        const char* key,
+        char* destination,
+        size_t destinationSize
+    ) const;
+    bool copyCoordinateFromServerFields(
+        char* destination,
+        size_t destinationSize
+    ) const;
+    bool readIntegerField(const char* key, int& value) const;
 };
 } // namespace RobotApp
 

@@ -107,6 +107,11 @@ public:
     MissionState missionState() const;
     BaseState baseState() const;
     GridState gridState() const;
+    ExitBaseState exitBaseState() const;
+    ExploreState exploreState() const;
+    AlignState alignState() const;
+    PlantState plantState() const;
+    ReturnState returnState() const;
     const char* stateName() const;
     bool isEmergencyStop() const;
     bool isEmergencyReturn() const;

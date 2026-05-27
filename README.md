@@ -18,14 +18,16 @@
 | D13 | SCL   | Chip select |
 | D14 | SDA   | Chip select |
 
-| Pin | Top Board LiDAR | Left to Right 1-6 (facing up) |
+| Pin | LiDAR | Left to Right 1-6 (facing up) |
 |:----|:----------|:------------|
 | 5V | VCC   | White |
-| TX1 | RXD (Pin 2)   | Blue |
-| RX1 | TXD (Pin 3)   | green |
+| RX1 (Pin 19) | RXD (Pin 2)   | Blue |
+| TX1 (Pin 18) | TXD (Pin 3)   | green |
 | GND | GND  | Yellow |
-| / | /   | Black |
-| / | /   | Red |
+| RX2 (Pin 17) | /   | Blue |
+| TX2 (Pin 16) | /   | Green |
+| RX3 (Pin 15) | /   | Blue |
+| TX3 (Pin 14) | /   | Green |
 
 | Pin | Revival Button | Description |
 |:----|:----------|:------------|

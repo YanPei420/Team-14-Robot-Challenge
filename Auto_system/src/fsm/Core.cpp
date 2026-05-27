@@ -100,6 +100,31 @@ GridState RobotFSM::gridState() const
     return gridState_;
 }
 
+ExitBaseState RobotFSM::exitBaseState() const
+{
+    return exitBaseState_;
+}
+
+ExploreState RobotFSM::exploreState() const
+{
+    return exploreState_;
+}
+
+AlignState RobotFSM::alignState() const
+{
+    return alignState_;
+}
+
+PlantState RobotFSM::plantState() const
+{
+    return plantState_;
+}
+
+ReturnState RobotFSM::returnState() const
+{
+    return returnState_;
+}
+
 bool RobotFSM::isEmergencyStop() const
 {
     return safetyState_ == SafetyState::EmergencyStop;
