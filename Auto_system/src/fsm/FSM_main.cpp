@@ -4,6 +4,7 @@
 
 #include <Arduino.h>
 #include <MiniMessenger.h>
+#include <string.h>
 
 #include "../M7/M7DriveProxy.h"
 #include "../RobotFSM.h"
@@ -15,6 +16,7 @@
 #include "KillSwitch.h"
 #include "KillSwitchConfig.h"
 #include "LED.h"
+#include "LidarSensor.h"
 #include "RFIDHandler.h"
 #include "ReviveButton.h"
 #include "WiFiHandlerConfig.h"
@@ -23,6 +25,8 @@ namespace
 {
 constexpr uint32_t STATUS_PRINT_INTERVAL_MS = 5000;
 constexpr uint32_t LOOP_DELAY_MS = 10;
+constexpr uint32_t AIRLOCK_REQUEST_RETRY_MS = 1000;
+constexpr uint32_t SOIL_QUERY_RETRY_MS = 1000;
 
 // Keep this true for the challenge run: once the server heartbeat enables
 // movement, the FSM leaves Base/Idle automatically.
@@ -35,16 +39,31 @@ LED statusLed;
 ReviveButton reviveButton;
 RFIDHandler rfidReader;
 IRSensor irSensors(IR_PINS, IR_SENSOR_COUNT);
+LidarSensor lidar(LIDAR_SERIAL);
 MiniMessenger messenger;
+
+enum class PendingAirlockRequest : uint8_t
+{
+    None,
+    ExitTunnelB,
+    EntryTunnelA
+};
 
 bool safetyEnabled = false;
 bool lastConnectedState = false;
 bool missionStartRequested = false;
 bool missionStarted = false;
 bool driveReady = false;
+bool soilQueryPending = false;
+PendingAirlockRequest pendingAirlockRequest = PendingAirlockRequest::None;
 uint32_t lastRegisterMs = 0;
 uint32_t lastHeartbeatMs = 0;
 uint32_t lastStatusPrintMs = 0;
+uint32_t lastAirlockRequestMs = 0;
+uint32_t lastSoilQueryMs = 0;
+uint8_t lastSeedsPlanted = 0;
+char pendingSoilTagId[24] = "";
+char activePlantTagId[24] = "";
 RobotApp::RemoteMessageParser remoteParser;
 RobotApp::RemoteEvents remoteEvents;
 
@@ -58,6 +77,252 @@ bool heartbeatIsFresh()
 bool remoteSafetyAllowsMotion()
 {
     return driveReady && safetyEnabled && heartbeatIsFresh();
+}
+
+bool robotIsInState(
+    MissionState mission,
+    BaseState base,
+    ExitBaseState exitBase
+)
+{
+    return
+        fsm.missionState() == mission &&
+        fsm.baseState() == base &&
+        fsm.exitBaseState() == exitBase;
+}
+
+bool robotIsInState(
+    MissionState mission,
+    BaseState base,
+    ReturnState returnState
+)
+{
+    return
+        fsm.missionState() == mission &&
+        fsm.baseState() == base &&
+        fsm.returnState() == returnState;
+}
+
+RobotApp::AutomaticMotionPhase automaticMotionPhase()
+{
+    if (robotIsInState(
+            MissionState::Base,
+            BaseState::ExitBase,
+            ExitBaseState::LineFollowToDoor
+        ))
+    {
+        return RobotApp::AutomaticMotionPhase::ExitLineToDoor;
+    }
+
+    if (robotIsInState(
+            MissionState::Base,
+            BaseState::ExitBase,
+            ExitBaseState::WaitForDoor
+        ))
+    {
+        return RobotApp::AutomaticMotionPhase::ExitWaitForDoor;
+    }
+
+    if (robotIsInState(
+            MissionState::Base,
+            BaseState::ExitBase,
+            ExitBaseState::TraverseTunnel
+        ))
+    {
+        return RobotApp::AutomaticMotionPhase::ExitTraverseTunnel;
+    }
+
+    if (robotIsInState(
+            MissionState::Base,
+            BaseState::ReturnHome,
+            ReturnState::NavigateToAirlock
+        ))
+    {
+        return RobotApp::AutomaticMotionPhase::ReturnToAirlock;
+    }
+
+    if (robotIsInState(
+            MissionState::Base,
+            BaseState::ReturnHome,
+            ReturnState::WaitForEntryDoor
+        ))
+    {
+        return RobotApp::AutomaticMotionPhase::EntryWaitForDoor;
+    }
+
+    if (robotIsInState(
+            MissionState::Base,
+            BaseState::ReturnHome,
+            ReturnState::TraverseTunnel
+        ))
+    {
+        return RobotApp::AutomaticMotionPhase::EntryTraverseTunnel;
+    }
+
+    return RobotApp::AutomaticMotionPhase::Idle;
+}
+
+void refreshAutomaticEventContext()
+{
+    RobotApp::updateAutomaticEventContext(
+        automaticMotionPhase(),
+        lidar.getDistanceCM(),
+        lidar.isValid(),
+        RobotNavigation::navigator().lineReading().visible
+    );
+}
+
+bool sendServerMessage(const char* payload)
+{
+    return messenger.sendToBoard(SERVER_BOARD_ID, payload);
+}
+
+void sendAirlockRequest(
+    PendingAirlockRequest request,
+    const char* messageType
+)
+{
+    if (pendingAirlockRequest != request)
+    {
+        pendingAirlockRequest = request;
+        lastAirlockRequestMs = 0;
+    }
+
+    if (
+        lastAirlockRequestMs != 0 &&
+        millis() - lastAirlockRequestMs < AIRLOCK_REQUEST_RETRY_MS
+    )
+    {
+        return;
+    }
+
+    char payload[96];
+    snprintf(
+        payload,
+        sizeof(payload),
+        "type=%s team_id=%s board_id=%s",
+        messageType,
+        GROUP_ID,
+        BOARD_ID
+    );
+
+    if (sendServerMessage(payload))
+    {
+        lastAirlockRequestMs = millis();
+    }
+}
+
+void serviceAirlockRequests()
+{
+    if (robotIsInState(
+            MissionState::Base,
+            BaseState::ExitBase,
+            ExitBaseState::RequestClearance
+        ))
+    {
+        sendAirlockRequest(
+            PendingAirlockRequest::ExitTunnelB,
+            "openAirlockB"
+        );
+        return;
+    }
+
+    if (robotIsInState(
+            MissionState::Base,
+            BaseState::ReturnHome,
+            ReturnState::WaitForEntryDoor
+        ))
+    {
+        sendAirlockRequest(
+            PendingAirlockRequest::EntryTunnelA,
+            "openAirlockA"
+        );
+        return;
+    }
+
+    if (pendingAirlockRequest != PendingAirlockRequest::None)
+    {
+        pendingAirlockRequest = PendingAirlockRequest::None;
+        lastAirlockRequestMs = 0;
+    }
+}
+
+void copyTagId(const String& source, char* destination, size_t destinationSize)
+{
+    source.toCharArray(destination, destinationSize);
+}
+
+void sendSoilQuery()
+{
+    if (pendingSoilTagId[0] == '\0')
+    {
+        return;
+    }
+
+    if (
+        lastSoilQueryMs != 0 &&
+        millis() - lastSoilQueryMs < SOIL_QUERY_RETRY_MS
+    )
+    {
+        return;
+    }
+
+    char payload[128];
+    snprintf(
+        payload,
+        sizeof(payload),
+        "type=isFertile team_id=%s board_id=%s tag_id=%s",
+        GROUP_ID,
+        BOARD_ID,
+        pendingSoilTagId
+    );
+
+    if (sendServerMessage(payload))
+    {
+        lastSoilQueryMs = millis();
+    }
+}
+
+void rememberPlantTag(const char* tagId)
+{
+    if (tagId == nullptr)
+    {
+        activePlantTagId[0] = '\0';
+        return;
+    }
+
+    strncpy(activePlantTagId, tagId, sizeof(activePlantTagId) - 1);
+    activePlantTagId[sizeof(activePlantTagId) - 1] = '\0';
+}
+
+void sendSeedPlantedIfNeeded()
+{
+    const uint8_t seedsPlanted = fsm.seedsPlanted();
+
+    if (seedsPlanted <= lastSeedsPlanted)
+    {
+        return;
+    }
+
+    lastSeedsPlanted = seedsPlanted;
+
+    if (activePlantTagId[0] == '\0')
+    {
+        return;
+    }
+
+    char payload[128];
+    snprintf(
+        payload,
+        sizeof(payload),
+        "type=seedPlanted team_id=%s board_id=%s tag_id=%s",
+        GROUP_ID,
+        BOARD_ID,
+        activePlantTagId
+    );
+
+    sendServerMessage(payload);
+    activePlantTagId[0] = '\0';
 }
 
 void onMessage(
@@ -168,6 +433,16 @@ void handleRfidEvent()
         return;
     }
 
+    if (
+        fsm.missionState() != MissionState::Grid ||
+        fsm.gridState() != GridState::ExploreGrid ||
+        fsm.exploreState() != ExploreState::DriveGrid ||
+        soilQueryPending
+    )
+    {
+        return;
+    }
+
     char coordinate[4];
     bool fertile = false;
     const String uid = rfidReader.getUID();
@@ -182,16 +457,91 @@ void handleRfidEvent()
         Serial.println(fertile ? "true" : "false");
 
         fsm.rfidDetected(coordinate, fertile);
+        if (fertile)
+        {
+            copyTagId(uid, activePlantTagId, sizeof(activePlantTagId));
+        }
     }
     else
     {
-        Serial.print("TODO: unmapped RFID uid=");
+        copyTagId(uid, pendingSoilTagId, sizeof(pendingSoilTagId));
+        soilQueryPending = true;
+        lastSoilQueryMs = 0;
+        robot.stop_all();
+
+        Serial.print("RFID server query: uid=");
         Serial.println(uid);
+        sendSoilQuery();
     }
 }
 
 void handleRemoteEvents()
 {
+    if (remoteEvents.airlockReply)
+    {
+        if (remoteEvents.airlockAccepted)
+        {
+            if (pendingAirlockRequest == PendingAirlockRequest::ExitTunnelB)
+            {
+                RobotApp::notifyExitAirlockAccepted();
+            }
+            else if (
+                pendingAirlockRequest == PendingAirlockRequest::EntryTunnelA
+            )
+            {
+                RobotApp::notifyEntryAirlockAccepted();
+            }
+        }
+
+        pendingAirlockRequest = PendingAirlockRequest::None;
+        lastAirlockRequestMs = 0;
+        remoteEvents.airlockReply = false;
+        remoteEvents.airlockAccepted = false;
+    }
+
+    if (remoteEvents.soilReply)
+    {
+        char replyTagId[24];
+        strncpy(replyTagId, pendingSoilTagId, sizeof(replyTagId) - 1);
+        replyTagId[sizeof(replyTagId) - 1] = '\0';
+
+        if (remoteEvents.rfidTagId[0] != '\0')
+        {
+            strncpy(replyTagId, remoteEvents.rfidTagId, sizeof(replyTagId) - 1);
+            replyTagId[sizeof(replyTagId) - 1] = '\0';
+        }
+
+        soilQueryPending = false;
+        pendingSoilTagId[0] = '\0';
+        lastSoilQueryMs = 0;
+
+        const bool shouldPlant =
+            remoteEvents.rfidFertile && !remoteEvents.rfidAlreadyPlanted;
+
+        if (remoteEvents.rfidCoordinate[0] != '\0')
+        {
+            RobotNavigation::navigator().observeRemoteRfidCoordinate(
+                remoteEvents.rfidCoordinate,
+                shouldPlant
+            );
+            fsm.rfidDetected(remoteEvents.rfidCoordinate, shouldPlant);
+
+            if (shouldPlant)
+            {
+                if (replyTagId[0] != '\0')
+                {
+                    rememberPlantTag(replyTagId);
+                }
+            }
+        }
+
+        remoteEvents.soilReply = false;
+        remoteEvents.rfidFertile = false;
+        remoteEvents.rfidAlreadyPlanted = false;
+        remoteEvents.rfidCoordinate[0] = '\0';
+        remoteEvents.rfidTagId[0] = '\0';
+    }
+
     if (remoteEvents.start)
     {
         missionStartRequested = true;
@@ -260,11 +610,13 @@ void handleRemoteEvents()
     if (remoteEvents.baseReached)
     {
         fsm.baseReached();
+        missionStarted = false;
         remoteEvents.baseReached = false;
     }
 
     if (remoteEvents.stranded)
     {
+        RobotApp::notifyRobotStranded();
         fsm.markStranded();
         remoteEvents.stranded = false;
     }
@@ -283,6 +635,13 @@ void handleAutomaticEvents()
         fsm.startMission();
         missionStarted = true;
         missionStartRequested = false;
+    }
+
+    if (soilQueryPending)
+    {
+        robot.stop_all();
+        sendSoilQuery();
+        return;
     }
 
     if (RobotApp::exitClearanceReceivedAutomatically())
@@ -327,6 +686,8 @@ void handleAutomaticEvents()
     {
         fsm.markStranded();
     }
+
+    serviceAirlockRequests();
 }
 
 void updateStatusLed()
@@ -385,10 +746,12 @@ void fsmSetup()
     statusLed.begin();
     reviveButton.begin();
     irSensors.begin();
+    lidar.begin();
     rfidReader.begin();
     RobotNavigation::navigator().begin();
     fsm.setNavigator(&RobotNavigation::navigator());
     fsm.begin();
+    lastSeedsPlanted = fsm.seedsPlanted();
 
     messenger.onMessage(onMessage);
     messenger.begin(
@@ -403,8 +766,8 @@ void fsmSetup()
     Serial.println("TERM 3 CHALLENGE AUTOMATIC FSM READY");
     Serial.println("M7: WiFi/MQTT, safety gate, RFID events, FSM");
     Serial.println("M4: Motoron chassis, motor refresh, wheel encoders");
-    Serial.println("MQTT events: start, clearance, exit_door_detected, exit_door_opened, arena_reached, rfid, return, entry_airlock_reached, entry_door_opened, base_reached, stranded, revive");
-    Serial.println("TODO: calibrate automatic door, arena, base, stranded, and RFID map detection functions in src/fsm/FSM_main.cpp.");
+    Serial.println("MQTT uplink: register, openAirlockA/B, isFertile, seedPlanted");
+    Serial.println("MQTT downlink: heartbeat, openAirlockReply, isFertileReply, emergency, disable, revive");
 }
 
 void fsmLoop()
@@ -417,7 +780,16 @@ void fsmLoop()
     killSwitch.update();
     reviveButton.update();
     irSensors.update();
+    if (lidar.update())
+    {
+        RobotNavigation::navigator().observeObstacleDistance(
+            lidar.getDistanceCM()
+        );
+    }
     RobotNavigation::navigator().observeLine(irSensors);
+    refreshAutomaticEventContext();
+
+    handleRemoteEvents();
 
     if (killSwitch.isTriggered() || !remoteSafetyAllowsMotion())
     {
@@ -435,10 +807,17 @@ void fsmLoop()
         fsm.reviveFromStranded();
     }
 
-    handleRemoteEvents();
     handleAutomaticEvents();
+    if (soilQueryPending)
+    {
+        updateStatusLed();
+        printStatus();
+        delay(LOOP_DELAY_MS);
+        return;
+    }
 
     fsm.update();
+    sendSeedPlantedIfNeeded();
     updateStatusLed();
     printStatus();
 

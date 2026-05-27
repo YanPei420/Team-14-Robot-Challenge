@@ -1,21 +1,25 @@
 #include <Arduino.h>
-#include "LidarSensor.h"
-// TF-Luna TX -> Arduino RX1 (pin 0), TF-Luna RX -> Arduino TX1 (pin 1)
 
-LidarSensor lidar(LIDAR_SERIAL);
+#if defined(CORE_CM7)
+#include "M7/M7_main.h"
+#elif defined(CORE_CM4)
+#include "M4/M4_main.h"
+#endif
 
-void setup() {
-  Serial.begin(115200);
-  uint32_t t = millis();
-  while (!Serial && millis() - t < 3000) { ; }
-  Serial.println("TF-Luna Lidar UART Test");
-  lidar.begin();
+void setup()
+{
+#if defined(CORE_CM7)
+    M7Core::setup();
+#elif defined(CORE_CM4)
+    M4Core::setup();
+#endif
 }
 
-void loop() {
-  if (lidar.update()) {
-    Serial.print("Distance: ");
-    Serial.print(lidar.getDistanceCM());
-    Serial.println(" cm ");
-  }
+void loop()
+{
+#if defined(CORE_CM7)
+    M7Core::loop();
+#elif defined(CORE_CM4)
+    M4Core::loop();
+#endif
 }

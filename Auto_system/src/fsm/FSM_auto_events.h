@@ -6,6 +6,26 @@
 
 namespace RobotApp
 {
+enum class AutomaticMotionPhase : uint8_t
+{
+    Idle,
+    ExitLineToDoor,
+    ExitWaitForDoor,
+    ExitTraverseTunnel,
+    ReturnToAirlock,
+    EntryWaitForDoor,
+    EntryTraverseTunnel
+};
+
+void updateAutomaticEventContext(
+    AutomaticMotionPhase phase,
+    int16_t lidarDistanceCm,
+    bool lidarValid,
+    bool lineVisible
+);
+void notifyExitAirlockAccepted();
+void notifyEntryAirlockAccepted();
+void notifyRobotStranded();
 bool exitClearanceReceivedAutomatically();
 bool exitDoorDetectedAutomatically();
 bool exitDoorOpenedAutomatically();

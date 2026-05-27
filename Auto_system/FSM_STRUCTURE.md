@@ -1,6 +1,8 @@
 # Hierarchical FSM Structure
 
-This document describes the current hierarchical finite-state machine (HFSM). State declarations live in `src/RobotFSM.h`, and implementations are split by layer under `src/fsm/`.
+This document describes the current hierarchical finite-state machine (HFSM).
+State declarations live in `src/RobotFSM.h`, and implementations are split by
+layer under `src/fsm/`.
 
 ![Term 3 Robot Hierarchical FSM](docs/hfsm_diagram.svg)
 
@@ -9,26 +11,38 @@ This document describes the current hierarchical finite-state machine (HFSM). St
 ```text
 src/
 |-- RobotFSM.h
-`-- fsm/
-    |-- Config.h
-    |-- Core.cpp
-    |-- Names.cpp
-    |-- Safety.cpp
-    |-- base/
-    |   `-- Mission_base.cpp
-    `-- grid/
-        `-- Mission_grid.cpp
+|-- RobotDrive.h
+|-- fsm/
+|   |-- FSMconfig.h
+|   |-- Core.cpp
+|   |-- Names.cpp
+|   |-- Safety.cpp
+|   |-- FSM_main.cpp
+|   |-- FSM_main.h
+|   |-- FSM_remote_events.cpp
+|   |-- FSM_remote_events.h
+|   |-- FSM_auto_events.cpp
+|   |-- FSM_auto_events.h
+|   |-- base/
+|   |   `-- Mission_base.cpp
+|   `-- grid/
+|       `-- Mission_grid.cpp
+`-- navigation/
 ```
 
 | File | Responsibility |
 |---|---|
-| `src/RobotFSM.h` | State enums, event APIs, query APIs, and private helpers |
+| `src/RobotFSM.h` | State enums, event APIs, query APIs, navigator hook, and private helpers |
+| `src/RobotDrive.h` | Abstract drive interface used by the FSM |
 | `src/fsm/Core.cpp` | Constructor, `begin()`, top-level `update()`, getters, and shared helpers |
 | `src/fsm/Safety.cpp` | Safety layer: `Normal`, `EmergencyStop`, stop and resume handling |
 | `src/fsm/base/Mission_base.cpp` | Base mission region: `Idle`, `ExitBase`, `ReturnHome`, `InsideBase` |
 | `src/fsm/grid/Mission_grid.cpp` | Grid mission region: exploration, RFID, alignment, planting, stranded/revived |
 | `src/fsm/Names.cpp` | State-name formatting and serial state logging |
-| `src/fsm/Config.h` | FSM speed, timeout, and action-duration constants |
+| `src/fsm/FSMconfig.h` | FSM speed, timeout, and action-duration constants |
+| `src/fsm/FSM_main.cpp` | M7 application wrapper for WiFi, safety, sensors, navigation, and FSM update |
+| `src/fsm/FSM_remote_events.*` | MQTT payload parsing into FSM events |
+| `src/fsm/FSM_auto_events.*` | Automatic event helpers for doors, tunnels, base arrival, stranded, and RFID lookup |
 
 ## Layer Model
 
@@ -45,7 +59,8 @@ SafetyState
 `-- EmergencyStop
 ```
 
-`SafetyState` has the highest priority. When the FSM is in `EmergencyStop`, `update()` returns immediately and does not advance the mission layer.
+`SafetyState` has the highest priority. When the FSM is in `EmergencyStop`,
+`update()` returns immediately and does not advance the mission layer.
 
 ## Safety Layer
 
@@ -62,7 +77,12 @@ enum class SafetyState : uint8_t
 | `triggerEmergencyStop()` | Enters `Safety/EmergencyStop` and immediately calls `stop_all()` |
 | `clearEmergencyStop()` | Returns to `Normal` and re-enters the current leaf state's action |
 
-Emergency stop does not reset mission/base/grid state. After recovery, `reenterCurrentLeafState()` resumes the previous leaf state.
+Emergency stop does not reset mission/base/grid state. After recovery,
+`reenterCurrentLeafState()` resumes the previous leaf state.
+
+In the M7 wrapper, the remote safety gate and kill switch drive this layer.
+Heartbeat timeout, heartbeat `enable=0`, stop/emergency/disable messages, M4
+drive offline, or kill switch activation keep the robot stopped.
 
 ## Mission Layer
 
@@ -125,12 +145,12 @@ Base
 |---|---|
 | `Idle` / `InsideBase` | Stop |
 | `ExitBase/RequestClearance` | Stop and wait for clearance |
-| `ExitBase/LineFollowToDoor` | `robot.forward(LINE_FOLLOW_SPEED)` |
+| `ExitBase/LineFollowToDoor` | `Navigator::driveExitLine()` or `robot.forward(LINE_FOLLOW_SPEED)` |
 | `ExitBase/WaitForDoor` | Stop and wait for the door |
-| `ExitBase/TraverseTunnel` | `robot.forward(TUNNEL_SPEED)` |
-| `ReturnHome/NavigateToAirlock` | `robot.backward(RETURN_SPEED)` |
+| `ExitBase/TraverseTunnel` | `Navigator::driveTunnel()` or `robot.forward(TUNNEL_SPEED)` |
+| `ReturnHome/NavigateToAirlock` | `Navigator::driveReturnHome()` or `robot.backward(RETURN_SPEED)` |
 | `ReturnHome/WaitForEntryDoor` | Stop and wait for the entry door |
-| `ReturnHome/TraverseTunnel` | `robot.forward(TUNNEL_SPEED)` |
+| `ReturnHome/TraverseTunnel` | `Navigator::driveTunnel()` or `robot.forward(TUNNEL_SPEED)` |
 
 ## Grid Region
 
@@ -173,11 +193,27 @@ Grid
 
 | State | Action |
 |---|---|
-| `ExploreGrid/DriveGrid` | `robot.forward(GRID_EXPLORE_SPEED)` |
+| `ExploreGrid/DriveGrid` | `Navigator::driveGridExplore()` or `robot.forward(GRID_EXPLORE_SPEED)` |
 | `ExploreGrid/QuerySoilStatus` | Stop |
 | `Align/SearchRFID` | Stop |
-| `Align/FineAdjustToHole` | `robot.forward(ALIGN_SPEED)` |
+| `Align/FineAdjustToHole` | `Navigator::driveFineAdjust()` or `robot.forward(ALIGN_SPEED)` |
 | `Plant/*` | Stop |
+
+When planting finishes, the FSM increments `seedsPlanted_`, clears the pending
+tag, and calls `Navigator::markCurrentCellPlanted()` if a navigator is attached.
+
+## Navigation Hook
+
+`RobotFSM` can receive a navigator with:
+
+```cpp
+void setNavigator(RobotNavigation::Navigator* navigator);
+```
+
+With a navigator attached, the FSM asks navigation to produce movement during
+line following, grid exploration, fine adjustment, tunnel traversal, and return
+home. Without a navigator, it falls back to fixed-speed `RobotDrive` commands
+from `FSMconfig.h`.
 
 ## Stranded / Revived
 
@@ -198,7 +234,8 @@ Revived return is a normal return. It does not set `emergencyReturn_`.
 
 ## Emergency Return
 
-Emergency return is not a separate `MissionState`. It is a flag on `Base/ReturnHome`:
+Emergency return is not a separate `MissionState`. It is a flag on
+`Base/ReturnHome`:
 
 ```cpp
 bool emergencyReturn_;
@@ -230,12 +267,55 @@ Normal/Base/ReturnHome/NavigateToAirlock
 1. If the robot is in `Grid` and `ARENA_TIME_LIMIT_MS` has elapsed since entering the arena, it returns home.
 2. If the robot is in `Revived` and `REVIVE_PAUSE_MS` has elapsed, it returns home.
 
-Key constants in `src/fsm/Config.h`:
+Key constants in `src/fsm/FSMconfig.h`:
 
 ```cpp
 constexpr uint32_t REVIVE_PAUSE_MS = 1000;
 constexpr uint32_t ARENA_TIME_LIMIT_MS = 4UL * 60UL * 1000UL;
 ```
+
+## M7 Wrapper Events
+
+`FSM_main.cpp` feeds the FSM from three sources:
+
+- MQTT messages parsed by `FSM_remote_events.*`
+- automatic helper functions in `FSM_auto_events.*`
+- local sensors: kill switch, revive button, RFID reader, Lidar, IR line sensors, and navigator observations
+
+Recognized MQTT event types include:
+
+```text
+start
+clearance
+exit_door_detected
+exit_door_opened
+arena_reached
+rfid
+return
+emergency_warning
+entry_airlock_reached
+entry_door_opened
+base_reached
+stranded
+revive
+disable
+openAirlockReply
+isFertileReply
+```
+
+The wrapper sends these server-facing messages:
+
+```text
+register
+openAirlockA
+openAirlockB
+isFertile
+seedPlanted
+```
+
+`FSM_auto_events.cpp` receives the current motion phase, Lidar distance validity,
+and line visibility from `FSM_main.cpp`. It uses those inputs to synthesize
+clearance, door, tunnel, base, and stranded events.
 
 ## Typical Flow
 
@@ -270,13 +350,10 @@ Normal/Grid/Plant/DropSeed
 -> Normal/Grid/Plant/DropSeed
 ```
 
-## Current main.cpp Note
+## Current `main.cpp` Note
 
-The current `src/main.cpp` does not instantiate or update `RobotFSM`. It currently runs the WiFi/MQTT heartbeat-gated forward-drive firmware:
-
-```text
-heartbeat enable=1 and not timed out -> robot.forward(500)
-stop/emergency/disable/enable=0 or heartbeat timeout -> stop_all()
-```
-
-So the FSM is currently a compile-ready mission framework, not the active control path in `main.cpp`.
+The current `src/main.cpp` is a TF-Luna Lidar UART test sketch. It does not call
+`RobotFSM` directly and does not call the M7/M4 wrapper entrypoints. The fuller
+FSM challenge application is present in `src/fsm/FSM_main.cpp`, `src/M7/`, and
+`src/M4/`, but it needs to be selected from `main.cpp` before it becomes the
+active firmware entrypoint.
