@@ -1,11 +1,47 @@
 <mxfile host="app.diagrams.net">
   <diagram name="Page-1" id="kv_JDHBKkwF9aUAeRU1R">
-    <mxGraphModel dx="1006" dy="693" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="1184" dy="815" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
+        <mxCell id="uIqIT5T2cFxQwPa8orXB-3" edge="1" parent="1" source="uIqIT5T2cFxQwPa8orXB-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="uIqIT5T2cFxQwPa8orXB-2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
         <mxCell id="uIqIT5T2cFxQwPa8orXB-1" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="Start" vertex="1">
           <mxGeometry height="40" width="80" x="40" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uIqIT5T2cFxQwPa8orXB-5" edge="1" parent="1" source="uIqIT5T2cFxQwPa8orXB-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="uIqIT5T2cFxQwPa8orXB-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uIqIT5T2cFxQwPa8orXB-2" parent="1" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;" value="&lt;font&gt;&amp;nbsp;Receives Stranded Robot Location&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="130" x="15" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="uIqIT5T2cFxQwPa8orXB-7" edge="1" parent="1" source="uIqIT5T2cFxQwPa8orXB-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="uIqIT5T2cFxQwPa8orXB-6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uIqIT5T2cFxQwPa8orXB-4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Goes Towards Stranded Robot" vertex="1">
+          <mxGeometry height="50" width="110" x="25" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="uIqIT5T2cFxQwPa8orXB-9" edge="1" parent="1" source="uIqIT5T2cFxQwPa8orXB-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="uIqIT5T2cFxQwPa8orXB-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uIqIT5T2cFxQwPa8orXB-6" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Taps Stranded Robot with Revival Button" vertex="1">
+          <mxGeometry height="60" width="120" x="20" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="uIqIT5T2cFxQwPa8orXB-11" edge="1" parent="1" source="uIqIT5T2cFxQwPa8orXB-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="uIqIT5T2cFxQwPa8orXB-10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uIqIT5T2cFxQwPa8orXB-8" parent="1" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;" value="&lt;font&gt;LED Turns&amp;nbsp;&lt;/font&gt;&lt;div&gt;&lt;font&gt;Green For 3s&lt;/font&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="20" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="uIqIT5T2cFxQwPa8orXB-13" edge="1" parent="1" source="uIqIT5T2cFxQwPa8orXB-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="uIqIT5T2cFxQwPa8orXB-12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uIqIT5T2cFxQwPa8orXB-10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Continues Original Task" vertex="1">
+          <mxGeometry height="60" width="120" x="20" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="uIqIT5T2cFxQwPa8orXB-12" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="End" vertex="1">
+          <mxGeometry height="35" width="60" x="50" y="560" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
