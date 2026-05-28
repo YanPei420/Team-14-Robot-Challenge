@@ -39,7 +39,7 @@ LED statusLed;
 ReviveButton reviveButton;
 RFIDHandler rfidReader;
 IRSensor irSensors(IR_PINS, IR_SENSOR_COUNT);
-LidarSensor lidar(LIDAR_SERIAL);
+LidarSensor lidar(LIDAR_SERIAL_1);
 MiniMessenger messenger;
 
 enum class PendingAirlockRequest : uint8_t

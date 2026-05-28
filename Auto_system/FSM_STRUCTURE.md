@@ -352,8 +352,7 @@ Normal/Grid/Plant/DropSeed
 
 ## Current `main.cpp` Note
 
-The current `src/main.cpp` is a TF-Luna Lidar UART test sketch. It does not call
-`RobotFSM` directly and does not call the M7/M4 wrapper entrypoints. The fuller
-FSM challenge application is present in `src/fsm/FSM_main.cpp`, `src/M7/`, and
-`src/M4/`, but it needs to be selected from `main.cpp` before it becomes the
-active firmware entrypoint.
+The current `src/main.cpp` dispatches by core: M7 calls the WiFi/safety/FSM
+wrapper in `src/M7/` and `src/fsm/FSM_main.cpp`, while M4 calls the motor
+service in `src/M4/`. The full challenge application is therefore the active
+firmware entrypoint.

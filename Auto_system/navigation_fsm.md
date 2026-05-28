@@ -245,11 +245,11 @@ type=stranded
 type=revive
 ```
 
-The old serial FSM test sketch is preserved in `src/main.cpp.bac` for reference.
+The active firmware entrypoint is `src/main.cpp`; it dispatches to the M7/M4
+challenge wrappers for the selected core.
 
 ## Current Firmware Note
 
-The current `src/main.cpp` is a TF-Luna Lidar UART test sketch. The M7 FSM
-wrapper and navigation integration are present, but `main.cpp` must be switched
-from the Lidar test to the M7/M4 entrypoints before this flow is the active
-firmware.
+The current `src/main.cpp` selects `M7Core::setup()/loop()` for `CORE_CM7` and
+`M4Core::setup()/loop()` for `CORE_CM4`. The M7 FSM wrapper and navigation
+integration are now active firmware.
