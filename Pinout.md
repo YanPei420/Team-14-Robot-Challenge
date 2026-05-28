@@ -18,11 +18,21 @@
 | Pin | LiDAR | Left to Right 1-6 (facing up) |
 |:----|:----------|:------------|
 | 5V | VCC   | White |
-| TX1 | RXD (Pin 2)   | Blue |
-| RX1 | TXD (Pin 3)   | green |
+| TX1 | Left   | Blue |
+| RX1 | Left   | green |
+| TX2 | Right   | Blue |
+| RX2 | Right   | green |
+| TX3 | Front   | Blue |
+| RX3 | Front   | green |
 | GND | GND  | Yellow |
-| / | /   | Black |
-| / | /   | Red |
+| Unused | /   | Black |
+| Unused | /   | Red |
+
+| Pin | Servo | Description |
+|:----|:----------|:------------|
+| D2 | Data   | Orange |
+| 5V | VCC   | Red |
+| GND | GNC   | Black |
 
 | Pin | Revival Button | Description |
 |:----|:----------|:------------|
@@ -45,3 +55,9 @@
 | D7 | | |
 | D8 | | |
 | D9 | | |
+
+| Pin | Micromotor | Description |
+|:----|:----------|:------------|
+
+| Pin | UV Panel | Description |
+|:----|:----------|:------------|
