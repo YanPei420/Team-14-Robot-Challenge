@@ -15,6 +15,10 @@
 #define LIDAR_SERIAL_1 Serial2   // Left  wall
 #define LIDAR_SERIAL_2 Serial3   // Right wall
 #define LIDAR_SERIAL_3 Serial4   // Front obstacle
+#define LIDAR_SERIAL_1 Serial2
+#define LIDAR_SERIAL_2 Serial3
+#define LIDAR_SERIAL_3 Serial4
+#define LIDAR_SERIAL   LIDAR_SERIAL_1
 
 #define LIDAR_BAUD_RATE 115200
 

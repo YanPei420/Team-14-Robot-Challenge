@@ -1,12 +1,10 @@
 #include "KillSwitch.h"
-#include "KillSwitchConfig.h"
 
 KillSwitch::KillSwitch(
-    uint8_t switchPin
+    uint8_t buttonPin
 )
 {
-    pin = switchPin;
-
+    pin = buttonPin;
     triggered = false;
 }
 

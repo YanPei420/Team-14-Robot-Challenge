@@ -3,18 +3,20 @@
 
 #include <Arduino.h>
 
+#include "KillSwitchConfig.h"
+
 class KillSwitch
 {
 private:
     uint8_t pin;
-
     bool triggered;
 
 public:
-    KillSwitch(uint8_t switchPin);
+    KillSwitch(
+        uint8_t buttonPin = KILL_SWITCH_PIN
+    );
 
     void begin();
-
     void update();
 
     bool isTriggered();

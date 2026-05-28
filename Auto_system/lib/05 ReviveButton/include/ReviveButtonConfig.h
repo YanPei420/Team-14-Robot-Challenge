@@ -7,7 +7,7 @@
 // BUTTON PIN
 // ======================================================
 
-constexpr uint8_t REVIVE_BUTTON_PIN = 24;
+constexpr uint8_t REVIVE_BUTTON_PIN = 35;
 
 // ======================================================
 // BUTTON STATE

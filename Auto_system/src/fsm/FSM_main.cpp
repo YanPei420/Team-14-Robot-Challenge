@@ -17,6 +17,7 @@
 #include "KillSwitchConfig.h"
 #include "LED.h"
 #include "LidarSensor.h"
+#include "LidarConfig.h"
 #include "RFIDHandler.h"
 #include "ReviveButton.h"
 #include "WiFiHandlerConfig.h"
@@ -39,7 +40,9 @@ LED statusLed;
 ReviveButton reviveButton;
 RFIDHandler rfidReader;
 IRSensor irSensors(IR_PINS, IR_SENSOR_COUNT);
-LidarSensor lidar(LIDAR_SERIAL_3);   // front obstacle detection
+LidarSensor lidar1(LIDAR_SERIAL_1);
+LidarSensor lidar2(LIDAR_SERIAL_2);
+LidarSensor lidar3(LIDAR_SERIAL_3);
 MiniMessenger messenger;
 
 enum class PendingAirlockRequest : uint8_t
@@ -166,8 +169,8 @@ void refreshAutomaticEventContext()
 {
     RobotApp::updateAutomaticEventContext(
         automaticMotionPhase(),
-        lidar.getDistanceCM(),
-        lidar.isValid(),
+        lidar1.getDistanceCM(),
+        lidar1.isValid(),
         RobotNavigation::navigator().lineReading().visible
     );
 }
@@ -746,7 +749,9 @@ void fsmSetup()
     statusLed.begin();
     reviveButton.begin();
     irSensors.begin();
-    lidar.begin();
+    lidar1.begin();
+    lidar2.begin();
+    lidar3.begin();
     rfidReader.begin();
     RobotNavigation::navigator().begin();
     fsm.setNavigator(&RobotNavigation::navigator());
@@ -780,12 +785,14 @@ void fsmLoop()
     killSwitch.update();
     reviveButton.update();
     irSensors.update();
-    if (lidar.update())
+    if (lidar1.update())
     {
         RobotNavigation::navigator().observeObstacleDistance(
-            lidar.getDistanceCM()
+            lidar1.getDistanceCM()
         );
     }
+    lidar2.update();
+    lidar3.update();
     RobotNavigation::navigator().observeLine(irSensors);
     refreshAutomaticEventContext();
 
