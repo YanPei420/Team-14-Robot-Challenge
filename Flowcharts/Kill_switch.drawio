@@ -1,11 +1,29 @@
 <mxfile host="app.diagrams.net">
   <diagram name="Page-1" id="UEdkW-txVRuH2IuknVvK">
-    <mxGraphModel dx="1006" dy="693" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="745" dy="513" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-2" edge="1" parent="1" source="syyK2gDJyIscCU-Wzd9B-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="gvUFpS2TYSaB8Mpa4bTG-1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
         <mxCell id="syyK2gDJyIscCU-Wzd9B-1" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="Start" vertex="1">
-          <mxGeometry height="40" width="80" x="40" y="40" as="geometry" />
+          <mxGeometry height="40" width="80" x="40" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-4" edge="1" parent="1" source="gvUFpS2TYSaB8Mpa4bTG-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="gvUFpS2TYSaB8Mpa4bTG-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-1" parent="1" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;" value="&lt;font&gt;Read Kill&lt;/font&gt;&lt;div&gt;&lt;font&gt;Switch Pin&lt;/font&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="50" width="110" x="25" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-6" edge="1" parent="1" source="gvUFpS2TYSaB8Mpa4bTG-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="gvUFpS2TYSaB8Mpa4bTG-5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-3" parent="1" style="rhombus;whiteSpace=wrap;html=1;" value="Is Kill Switch Activated?" vertex="1">
+          <mxGeometry height="100" width="110" x="25" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Continue Operation" vertex="1">
+          <mxGeometry height="60" width="120" x="170" y="220" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
