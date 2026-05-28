@@ -1,18 +1,25 @@
 #include <Arduino.h>
-#include "MotoronDrive.h"
 
-MotoronDrive Robot(MOTORON_ADDR_FRONT, MOTORON_ADDR_REAR);
+#if defined(CORE_CM7)
+#include "M7/M7_main.h"
+#elif defined(CORE_CM4)
+#include "M4/M4_main.h"
+#endif
 
 void setup()
 {
-    Serial.begin(115200);
-    while (!Serial) {}
-
-    Robot.begin();
+#if defined(CORE_CM7)
+    M7Core::setup();
+#elif defined(CORE_CM4)
+    M4Core::setup();
+#endif
 }
 
 void loop()
 {
-    Robot.rotate_left(500);
-    delay(1000);
+#if defined(CORE_CM7)
+    M7Core::loop();
+#elif defined(CORE_CM4)
+    M4Core::loop();
+#endif
 }
