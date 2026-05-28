@@ -10,8 +10,29 @@
         <mxCell id="jYelRAQmVRhCtHNBIepe-1" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="Start" vertex="1">
           <mxGeometry height="40" width="80" x="40" y="40" as="geometry" />
         </mxCell>
-        <mxCell id="jYelRAQmVRhCtHNBIepe-2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Line Following Algorithm" vertex="1">
+        <mxCell id="jYelRAQmVRhCtHNBIepe-7" edge="1" parent="1" source="jYelRAQmVRhCtHNBIepe-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="jYelRAQmVRhCtHNBIepe-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="jYelRAQmVRhCtHNBIepe-2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Line Following" vertex="1">
           <mxGeometry height="50" width="100" x="30" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="jYelRAQmVRhCtHNBIepe-13" edge="1" parent="1" source="jYelRAQmVRhCtHNBIepe-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="jYelRAQmVRhCtHNBIepe-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="jYelRAQmVRhCtHNBIepe-4" parent="1" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;" value="Read RFID Tag To Leave Base" vertex="1">
+          <mxGeometry height="70" width="130" x="15" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="jYelRAQmVRhCtHNBIepe-5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Start Obstacle Detection in Wall Following" vertex="1">
+          <mxGeometry height="60" width="120" x="20" y="370" as="geometry" />
+        </mxCell>
+        <mxCell id="jYelRAQmVRhCtHNBIepe-15" edge="1" parent="1" source="jYelRAQmVRhCtHNBIepe-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="jYelRAQmVRhCtHNBIepe-5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="jYelRAQmVRhCtHNBIepe-9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Line Following" vertex="1">
+          <mxGeometry height="50" width="110" x="25" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="jYelRAQmVRhCtHNBIepe-17" parent="1" style="rhombus;whiteSpace=wrap;html=1;" value="Is there an Obstacle In front &amp;lt;&amp;nbsp;" vertex="1">
+          <mxGeometry height="130" width="120" x="20" y="455" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
