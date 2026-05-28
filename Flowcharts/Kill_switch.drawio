@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net">
   <diagram name="Page-1" id="UEdkW-txVRuH2IuknVvK">
-    <mxGraphModel dx="745" dy="513" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="1341" dy="924" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -8,22 +8,87 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="syyK2gDJyIscCU-Wzd9B-1" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="Start" vertex="1">
-          <mxGeometry height="40" width="80" x="40" y="50" as="geometry" />
+          <mxGeometry height="40" width="80" x="111.25" y="50" as="geometry" />
         </mxCell>
         <mxCell id="gvUFpS2TYSaB8Mpa4bTG-4" edge="1" parent="1" source="gvUFpS2TYSaB8Mpa4bTG-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="gvUFpS2TYSaB8Mpa4bTG-3">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="gvUFpS2TYSaB8Mpa4bTG-1" parent="1" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;" value="&lt;font&gt;Read Kill&lt;/font&gt;&lt;div&gt;&lt;font&gt;Switch Pin&lt;/font&gt;&lt;/div&gt;" vertex="1">
-          <mxGeometry height="50" width="110" x="25" y="120" as="geometry" />
+          <mxGeometry height="50" width="110" x="96.25" y="120" as="geometry" />
         </mxCell>
         <mxCell id="gvUFpS2TYSaB8Mpa4bTG-6" edge="1" parent="1" source="gvUFpS2TYSaB8Mpa4bTG-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="gvUFpS2TYSaB8Mpa4bTG-5">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-7" connectable="0" parent="gvUFpS2TYSaB8Mpa4bTG-6" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="No" vertex="1">
+          <mxGeometry relative="1" x="0.0236" y="1" as="geometry">
+            <mxPoint x="-3" y="1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-9" edge="1" parent="1" source="gvUFpS2TYSaB8Mpa4bTG-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gvUFpS2TYSaB8Mpa4bTG-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-11" connectable="0" parent="gvUFpS2TYSaB8Mpa4bTG-9" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="Yes" vertex="1">
+          <mxGeometry relative="1" x="-0.3156" y="-1" as="geometry">
+            <mxPoint x="1" as="offset" />
+          </mxGeometry>
+        </mxCell>
         <mxCell id="gvUFpS2TYSaB8Mpa4bTG-3" parent="1" style="rhombus;whiteSpace=wrap;html=1;" value="Is Kill Switch Activated?" vertex="1">
-          <mxGeometry height="100" width="110" x="25" y="200" as="geometry" />
+          <mxGeometry height="100" width="110" x="96.25" y="200" as="geometry" />
         </mxCell>
         <mxCell id="gvUFpS2TYSaB8Mpa4bTG-5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Continue Operation" vertex="1">
-          <mxGeometry height="60" width="120" x="170" y="220" as="geometry" />
+          <mxGeometry height="60" width="120" x="261.25" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-16" edge="1" parent="1" source="gvUFpS2TYSaB8Mpa4bTG-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="gvUFpS2TYSaB8Mpa4bTG-15">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-8" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Disable Motor Operation and LED Flashes Red" vertex="1">
+          <mxGeometry height="60" width="142.5" x="80" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-17" edge="1" parent="1" source="gvUFpS2TYSaB8Mpa4bTG-15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="gvUFpS2TYSaB8Mpa4bTG-8">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="30" y="485" />
+              <mxPoint x="30" y="370" />
+            </Array>
+            <mxPoint x="40" y="380" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-18" connectable="0" parent="gvUFpS2TYSaB8Mpa4bTG-17" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="Yes" vertex="1">
+          <mxGeometry relative="1" x="0.14" y="3" as="geometry">
+            <mxPoint y="11" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-20" edge="1" parent="1" source="gvUFpS2TYSaB8Mpa4bTG-15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gvUFpS2TYSaB8Mpa4bTG-19">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-21" connectable="0" parent="gvUFpS2TYSaB8Mpa4bTG-20" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="No" vertex="1">
+          <mxGeometry relative="1" x="-0.4063" y="-1" as="geometry">
+            <mxPoint x="14" y="-1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-15" parent="1" style="rhombus;whiteSpace=wrap;html=1;" value="Is Robot&lt;div&gt;Still Stranded?&lt;/div&gt;" vertex="1">
+          <mxGeometry height="110" width="113.12" x="94.69" y="430" as="geometry" />
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-23" edge="1" parent="1" source="gvUFpS2TYSaB8Mpa4bTG-19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gvUFpS2TYSaB8Mpa4bTG-22">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-19" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Manually Place Robot Back To Base And Press Kill Switch" vertex="1">
+          <mxGeometry height="60" width="120" x="270" y="455" as="geometry" />
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-26" edge="1" parent="1" source="gvUFpS2TYSaB8Mpa4bTG-22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="gvUFpS2TYSaB8Mpa4bTG-25">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-22" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="LED Turns Solid Red" vertex="1">
+          <mxGeometry height="60" width="120" x="410" y="455" as="geometry" />
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-29" edge="1" parent="1" source="gvUFpS2TYSaB8Mpa4bTG-25" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="gvUFpS2TYSaB8Mpa4bTG-28">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-25" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Leaving Base Algorithm" vertex="1">
+          <mxGeometry height="60" width="120" x="550" y="455" as="geometry" />
+        </mxCell>
+        <mxCell id="gvUFpS2TYSaB8Mpa4bTG-28" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="End" vertex="1">
+          <mxGeometry height="40" width="70" x="700" y="465" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
