@@ -15,10 +15,10 @@ constexpr uint16_t MOTOR_MAX_ACCELERATION = 300;
 constexpr uint16_t MOTOR_MAX_DECELERATION = 600;
 constexpr uint16_t MOTOR_COMMAND_TIMEOUT_MS = 1000;
 
-constexpr int8_t MOTOR_FRONT_LEFT_DIRECTION = 1;
-constexpr int8_t MOTOR_FRONT_RIGHT_DIRECTION = -1;
-constexpr int8_t MOTOR_REAR_LEFT_DIRECTION = 1;
-constexpr int8_t MOTOR_REAR_RIGHT_DIRECTION = -1;
+constexpr int8_t MOTOR_FRONT_LEFT_DIRECTION = -1;
+constexpr int8_t MOTOR_FRONT_RIGHT_DIRECTION = 1;
+constexpr int8_t MOTOR_REAR_LEFT_DIRECTION = -1;
+constexpr int8_t MOTOR_REAR_RIGHT_DIRECTION = 1;
 
 constexpr uint8_t MOTOR_ENCODER_SLOT_COUNT = 4;
 constexpr bool MOTOR_ENCODER_USE_INTERNAL_PULLUPS = true;
