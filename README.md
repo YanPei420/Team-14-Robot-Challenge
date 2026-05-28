@@ -55,11 +55,13 @@ Please edit the motor pinnouts
 
 | Pin | Micromotor | Description |
 |:----|:----------|:------------|
-| D2 | | |
+| D6 | | |
 
 | Pin | SG90 Servo | Description |
 |:----|:----------|:------------|
 | D2 | | |
+| VCC | 5V | |
+| GND | GND | |
 
 | Pin | UV Panel | Description |
 |:----|:----------|:------------|
