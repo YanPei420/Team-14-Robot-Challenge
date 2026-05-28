@@ -16,6 +16,12 @@ private:
     uint16_t      strength;
     float         temperature;
     unsigned long lastUpdateMs;
+    uint32_t      validFrameCount;
+    uint32_t      checksumErrorCount;
+    uint32_t      lowStrengthCount;
+    uint32_t      droppedByteCount;
+    uint8_t       frameBuffer[9];
+    uint8_t       frameIndex;
 
     bool parseFrame(uint8_t* buf);
 
@@ -32,6 +38,11 @@ public:
     uint16_t      getStrength();
     float         getTemperature();
     unsigned long getLastUpdateMs();
+    int           getBytesAvailable();
+    uint32_t      getValidFrameCount();
+    uint32_t      getChecksumErrorCount();
+    uint32_t      getLowStrengthCount();
+    uint32_t      getDroppedByteCount();
 
     // True once at least one valid reading has been received
     bool isValid();

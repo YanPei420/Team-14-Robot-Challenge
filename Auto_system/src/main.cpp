@@ -1,25 +1,18 @@
 #include <Arduino.h>
-#include "ServoSweep.h"
+#include "MotoronDrive.h"
 
-ServoSweep lidarServo(SERVO_PIN);
+MotoronDrive Robot(MOTORON_ADDR_FRONT, MOTORON_ADDR_REAR);
 
-unsigned long lastPrintMs = 0;
-
-void setup() {
+void setup()
+{
     Serial.begin(115200);
-    uint32_t t = millis();
-    while (!Serial && millis() - t < 3000) { ; }
-    Serial.println("=== Servo sweep test ===");
-    lidarServo.begin();
+    while (!Serial) {}
+
+    Robot.begin();
 }
 
-void loop() {
-    lidarServo.update();
-
-    if (millis() - lastPrintMs >= SERVO_PRINT_INTERVAL_MS) {
-        lastPrintMs = millis();
-        Serial.print("angle: ");
-        Serial.print(lidarServo.getAngle());
-        Serial.println(" deg");
-    }
+void loop()
+{
+    Robot.rotate_left(500);
+    delay(1000);
 }

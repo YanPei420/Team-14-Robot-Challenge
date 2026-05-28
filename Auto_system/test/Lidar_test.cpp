@@ -11,7 +11,17 @@ static void printReading(const char* label, LidarSensor& lidar) {
     Serial.print(label);
     Serial.print(": ");
     if (!lidar.isValid()) {
-        Serial.println("no data yet");
+        Serial.print("no valid data yet");
+        Serial.print("  avail=");
+        Serial.print(lidar.getBytesAvailable());
+        Serial.print(" frames=");
+        Serial.print(lidar.getValidFrameCount());
+        Serial.print(" checksum=");
+        Serial.print(lidar.getChecksumErrorCount());
+        Serial.print(" weak=");
+        Serial.print(lidar.getLowStrengthCount());
+        Serial.print(" dropped=");
+        Serial.println(lidar.getDroppedByteCount());
         return;
     }
     unsigned long age = millis() - lidar.getLastUpdateMs();
@@ -20,7 +30,17 @@ static void printReading(const char* label, LidarSensor& lidar) {
     Serial.print(lidar.getStrength());
     Serial.print(", age=");
     Serial.print(age);
-    Serial.println("ms)");
+    Serial.print("ms, avail=");
+    Serial.print(lidar.getBytesAvailable());
+    Serial.print(", frames=");
+    Serial.print(lidar.getValidFrameCount());
+    Serial.print(", checksum=");
+    Serial.print(lidar.getChecksumErrorCount());
+    Serial.print(", weak=");
+    Serial.print(lidar.getLowStrengthCount());
+    Serial.print(", dropped=");
+    Serial.print(lidar.getDroppedByteCount());
+    Serial.println(")");
 }
 
 void setup() {

@@ -7,6 +7,11 @@ LidarSensor::LidarSensor(HardwareSerial& serialPort)
     strength     = 0;
     temperature  = 0.0f;
     lastUpdateMs = 0;
+    validFrameCount = 0;
+    checksumErrorCount = 0;
+    lowStrengthCount = 0;
+    droppedByteCount = 0;
+    frameIndex = 0;
 }
 
 void LidarSensor::begin()
@@ -22,37 +27,65 @@ void LidarSensor::begin()
 
 bool LidarSensor::update()
 {
-    if (serial.available() < 9)
-        return false;
+    bool receivedValidFrame = false;
 
-    // Scan for frame header 0x59 0x59
-    while (serial.available() >= 9)
+    while (serial.available() > 0)
     {
-        if (serial.peek() != 0x59)
+        const uint8_t byte = static_cast<uint8_t>(serial.read());
+
+        if (frameIndex == 0)
         {
-            serial.read(); // discard misaligned byte
+            if (byte == 0x59)
+            {
+                frameBuffer[frameIndex++] = byte;
+            }
+            else
+            {
+                ++droppedByteCount;
+            }
             continue;
         }
 
-        uint8_t buf[9];
-        serial.readBytes(buf, 9);
-
-        if (buf[0] != 0x59 || buf[1] != 0x59)
-            continue;
-
-        // Verify checksum (sum of bytes 0-7, take low byte)
-        uint8_t checksum = 0;
-        for (uint8_t i = 0; i < 8; i++) checksum += buf[i];
-        if (checksum != buf[8])
+        if (frameIndex == 1)
         {
+            if (byte == 0x59)
+            {
+                frameBuffer[frameIndex++] = byte;
+            }
+            else
+            {
+                frameIndex = 0;
+                ++droppedByteCount;
+            }
+            continue;
+        }
+
+        frameBuffer[frameIndex++] = byte;
+
+        if (frameIndex < 9)
+        {
+            continue;
+        }
+
+        frameIndex = 0;
+
+        uint8_t checksum = 0;
+        for (uint8_t i = 0; i < 8; i++) checksum += frameBuffer[i];
+        if (checksum != frameBuffer[8])
+        {
+            ++checksumErrorCount;
             if (LIDAR_DEBUG) Serial.println("[Lidar] checksum error");
             continue;
         }
 
-        return parseFrame(buf);
+        if (parseFrame(frameBuffer))
+        {
+            ++validFrameCount;
+            receivedValidFrame = true;
+        }
     }
 
-    return false;
+    return receivedValidFrame;
 }
 
 bool LidarSensor::parseFrame(uint8_t* buf)
@@ -63,6 +96,7 @@ bool LidarSensor::parseFrame(uint8_t* buf)
 
     if (amp < LIDAR_MIN_STRENGTH)
     {
+        ++lowStrengthCount;
         if (LIDAR_DEBUG)
         {
             Serial.print("[Lidar] low strength: ");
@@ -93,4 +127,9 @@ int16_t       LidarSensor::getDistanceCM()   { return distanceCM; }
 uint16_t      LidarSensor::getStrength()     { return strength; }
 float         LidarSensor::getTemperature()  { return temperature; }
 unsigned long LidarSensor::getLastUpdateMs() { return lastUpdateMs; }
+int           LidarSensor::getBytesAvailable() { return serial.available(); }
+uint32_t      LidarSensor::getValidFrameCount() { return validFrameCount; }
+uint32_t      LidarSensor::getChecksumErrorCount() { return checksumErrorCount; }
+uint32_t      LidarSensor::getLowStrengthCount() { return lowStrengthCount; }
+uint32_t      LidarSensor::getDroppedByteCount() { return droppedByteCount; }
 bool          LidarSensor::isValid()         { return distanceCM != LIDAR_INVALID_DISTANCE; }

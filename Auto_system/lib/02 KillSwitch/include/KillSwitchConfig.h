@@ -1,21 +1,24 @@
 #ifndef KILL_SWITCH_CONFIG_H
 #define KILL_SWITCH_CONFIG_H
 
+#include <Arduino.h>
+
 // ======================================================
-// SWITCH LOGIC
+// BUTTON PIN
 // ======================================================
 
-#define KILL_SWITCH_PIN 33
+constexpr uint8_t KILL_SWITCH_PIN = 33;
 
-// HIGH = emergency active
-// LOW  = normal
+// ======================================================
+// BUTTON STATE
+// ======================================================
 
-#define KILL_SWITCH_ACTIVE_STATE HIGH
+constexpr uint8_t KILL_SWITCH_ACTIVE_STATE = LOW;
 
 // ======================================================
 // SERIAL DEBUG
 // ======================================================
 
-#define KILL_SWITCH_DEBUG true
+constexpr bool KILL_SWITCH_DEBUG = false;
 
 #endif
