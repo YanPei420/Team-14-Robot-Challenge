@@ -1,25 +1,25 @@
 #include <Arduino.h>
+#include "ServoSweep.h"
 
-#if defined(CORE_CM7)
-#include "M7/M7_main.h"
-#elif defined(CORE_CM4)
-#include "M4/M4_main.h"
-#endif
+ServoSweep lidarServo(SERVO_PIN);
 
-void setup()
-{
-#if defined(CORE_CM7)
-    M7Core::setup();
-#elif defined(CORE_CM4)
-    M4Core::setup();
-#endif
+unsigned long lastPrintMs = 0;
+
+void setup() {
+    Serial.begin(115200);
+    uint32_t t = millis();
+    while (!Serial && millis() - t < 3000) { ; }
+    Serial.println("=== Servo sweep test ===");
+    lidarServo.begin();
 }
 
-void loop()
-{
-#if defined(CORE_CM7)
-    M7Core::loop();
-#elif defined(CORE_CM4)
-    M4Core::loop();
-#endif
+void loop() {
+    lidarServo.update();
+
+    if (millis() - lastPrintMs >= SERVO_PRINT_INTERVAL_MS) {
+        lastPrintMs = millis();
+        Serial.print("angle: ");
+        Serial.print(lidarServo.getAngle());
+        Serial.println(" deg");
+    }
 }
