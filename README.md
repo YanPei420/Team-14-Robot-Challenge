@@ -26,8 +26,8 @@
 | GND | GND  | Yellow |
 | RX2 (Pin 17) | /   | Blue |
 | TX2 (Pin 16) | /   | Green |
-| RX3 (Pin 15) | /   | Blue |
-| TX3 (Pin 14) | /   | Green |
+| RX3 (Pin 15) | front   | Blue |
+| TX3 (Pin 14) | front   | Green |
 
 | Pin | Revival Button | Description |
 |:----|:----------|:------------|
@@ -55,11 +55,13 @@ Please edit the motor pinnouts
 
 | Pin | Micromotor | Description |
 |:----|:----------|:------------|
-| D2 | | |
+| D6 | | |
 
 | Pin | SG90 Servo | Description |
 |:----|:----------|:------------|
 | D2 | | |
+| VCC | 5V | |
+| GND | GND | |
 
 | Pin | UV Panel | Description |
 |:----|:----------|:------------|
