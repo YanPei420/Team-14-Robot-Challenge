@@ -1,10 +1,9 @@
 #include "../RobotFSM.h"
 
-#include "FSMconfig.h"
+#include "Config.h"
 
-RobotFSM::RobotFSM(RobotDrive& robot)
+RobotFSM::RobotFSM(MotoronDrive& robot)
     : robot_(robot),
-      navigator_(nullptr),
       safetyState_(SafetyState::Normal),
       missionState_(MissionState::Base),
       baseState_(BaseState::Idle),
@@ -38,11 +37,6 @@ void RobotFSM::update()
     }
 
     updateNormal();
-}
-
-void RobotFSM::setNavigator(RobotNavigation::Navigator* navigator)
-{
-    navigator_ = navigator;
 }
 
 void RobotFSM::updateNormal()
@@ -98,31 +92,6 @@ BaseState RobotFSM::baseState() const
 GridState RobotFSM::gridState() const
 {
     return gridState_;
-}
-
-ExitBaseState RobotFSM::exitBaseState() const
-{
-    return exitBaseState_;
-}
-
-ExploreState RobotFSM::exploreState() const
-{
-    return exploreState_;
-}
-
-AlignState RobotFSM::alignState() const
-{
-    return alignState_;
-}
-
-PlantState RobotFSM::plantState() const
-{
-    return plantState_;
-}
-
-ReturnState RobotFSM::returnState() const
-{
-    return returnState_;
 }
 
 bool RobotFSM::isEmergencyStop() const

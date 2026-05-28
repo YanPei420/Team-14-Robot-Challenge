@@ -1,28 +1,45 @@
 #include "../../RobotFSM.h"
 
-#include "../../navigation/Navigator.h"
-#include "../FSMconfig.h"
+#include "../Config.h"
 
 void RobotFSM::updateBase()
 {
-    if (navigator_ == nullptr)
+    switch (baseState_)
     {
-        return;
-    }
+        case BaseState::Idle:
+        case BaseState::InsideBase:
+            break;
 
-    if (
-        baseState_ == BaseState::ExitBase &&
-        exitBaseState_ == ExitBaseState::LineFollowToDoor
-    )
-    {
-        navigator_->driveExitLine(robot_);
+        case BaseState::ExitBase:
+            updateExitBase();
+            break;
+
+        case BaseState::ReturnHome:
+            updateReturnHome();
+            break;
     }
-    else if (
-        baseState_ == BaseState::ReturnHome &&
-        returnState_ == ReturnState::NavigateToAirlock
-    )
+}
+
+void RobotFSM::updateExitBase()
+{
+    switch (exitBaseState_)
     {
-        navigator_->driveReturnHome(robot_);
+        case ExitBaseState::RequestClearance:
+        case ExitBaseState::LineFollowToDoor:
+        case ExitBaseState::WaitForDoor:
+        case ExitBaseState::TraverseTunnel:
+            break;
+    }
+}
+
+void RobotFSM::updateReturnHome()
+{
+    switch (returnState_)
+    {
+        case ReturnState::NavigateToAirlock:
+        case ReturnState::WaitForEntryDoor:
+        case ReturnState::TraverseTunnel:
+            break;
     }
 }
 
@@ -241,25 +258,11 @@ void RobotFSM::enterExitBaseState()
             break;
 
         case ExitBaseState::LineFollowToDoor:
-            if (navigator_ != nullptr)
-            {
-                navigator_->driveExitLine(robot_);
-            }
-            else
-            {
-                robot_.forward(RobotFSMConfig::LINE_FOLLOW_SPEED);
-            }
+            robot_.forward(RobotFSMConfig::LINE_FOLLOW_SPEED);
             break;
 
         case ExitBaseState::TraverseTunnel:
-            if (navigator_ != nullptr)
-            {
-                navigator_->driveTunnel(robot_);
-            }
-            else
-            {
-                robot_.forward(RobotFSMConfig::TUNNEL_SPEED);
-            }
+            robot_.forward(RobotFSMConfig::TUNNEL_SPEED);
             break;
     }
 }
@@ -269,14 +272,7 @@ void RobotFSM::enterReturnState()
     switch (returnState_)
     {
         case ReturnState::NavigateToAirlock:
-            if (navigator_ != nullptr)
-            {
-                navigator_->driveReturnHome(robot_);
-            }
-            else
-            {
-                robot_.backward(RobotFSMConfig::RETURN_SPEED);
-            }
+            robot_.backward(RobotFSMConfig::RETURN_SPEED);
             break;
 
         case ReturnState::WaitForEntryDoor:
@@ -284,14 +280,7 @@ void RobotFSM::enterReturnState()
             break;
 
         case ReturnState::TraverseTunnel:
-            if (navigator_ != nullptr)
-            {
-                navigator_->driveTunnel(robot_);
-            }
-            else
-            {
-                robot_.forward(RobotFSMConfig::TUNNEL_SPEED);
-            }
+            robot_.forward(RobotFSMConfig::TUNNEL_SPEED);
             break;
     }
 }

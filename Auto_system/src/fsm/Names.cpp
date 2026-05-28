@@ -125,6 +125,21 @@ const char* RobotFSM::baseStateName(BaseState state) const
     return "Unknown";
 }
 
+const char* RobotFSM::gridStateName(GridState state) const
+{
+    switch (state)
+    {
+        case GridState::ExploreGrid:
+            return "ExploreGrid";
+        case GridState::Align:
+            return "Align";
+        case GridState::Plant:
+            return "Plant";
+    }
+
+    return "Unknown";
+}
+
 const char* RobotFSM::exitBaseStateName(ExitBaseState state) const
 {
     switch (state)

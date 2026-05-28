@@ -2,8 +2,7 @@
 
 #include <string.h>
 
-#include "../../navigation/Navigator.h"
-#include "../FSMconfig.h"
+#include "../Config.h"
 
 void RobotFSM::updateGrid()
 {
@@ -28,10 +27,6 @@ void RobotFSM::updateExploreGrid()
     switch (exploreState_)
     {
         case ExploreState::DriveGrid:
-            if (navigator_ != nullptr)
-            {
-                navigator_->driveGridExplore(robot_);
-            }
             break;
 
         case ExploreState::QuerySoilStatus:
@@ -133,10 +128,6 @@ void RobotFSM::plantingMechanismDone()
     }
 
     clearPendingTag();
-    if (navigator_ != nullptr)
-    {
-        navigator_->markCurrentCellPlanted();
-    }
 
     if (seedsRemaining() == 0)
     {
@@ -266,14 +257,7 @@ void RobotFSM::enterExploreState()
     switch (exploreState_)
     {
         case ExploreState::DriveGrid:
-            if (navigator_ != nullptr)
-            {
-                navigator_->driveGridExplore(robot_);
-            }
-            else
-            {
-                robot_.forward(RobotFSMConfig::GRID_EXPLORE_SPEED);
-            }
+            robot_.forward(RobotFSMConfig::GRID_EXPLORE_SPEED);
             break;
 
         case ExploreState::QuerySoilStatus:
@@ -291,14 +275,7 @@ void RobotFSM::enterAlignState()
             break;
 
         case AlignState::FineAdjustToHole:
-            if (navigator_ != nullptr)
-            {
-                navigator_->driveFineAdjust(robot_);
-            }
-            else
-            {
-                robot_.forward(RobotFSMConfig::ALIGN_SPEED);
-            }
+            robot_.forward(RobotFSMConfig::ALIGN_SPEED);
             break;
     }
 }

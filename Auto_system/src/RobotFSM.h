@@ -2,12 +2,7 @@
 
 #include <Arduino.h>
 
-#include "RobotDrive.h"
-
-namespace RobotNavigation
-{
-class Navigator;
-}
+#include "./MotoronDrive.h"
 
 enum class SafetyState : uint8_t
 {
@@ -81,11 +76,10 @@ struct RfidTag
 class RobotFSM
 {
 public:
-    explicit RobotFSM(RobotDrive& robot);
+    explicit RobotFSM(MotoronDrive& robot);
 
     void begin();
     void update();
-    void setNavigator(RobotNavigation::Navigator* navigator);
 
     void startMission();
     void exitClearanceReceived();
@@ -107,11 +101,6 @@ public:
     MissionState missionState() const;
     BaseState baseState() const;
     GridState gridState() const;
-    ExitBaseState exitBaseState() const;
-    ExploreState exploreState() const;
-    AlignState alignState() const;
-    PlantState plantState() const;
-    ReturnState returnState() const;
     const char* stateName() const;
     bool isEmergencyStop() const;
     bool isEmergencyReturn() const;
@@ -123,8 +112,7 @@ public:
 private:
     static constexpr uint8_t MAX_SEEDS = 5;
 
-    RobotDrive& robot_;
-    RobotNavigation::Navigator* navigator_;
+    MotoronDrive& robot_;
 
     SafetyState safetyState_;
     MissionState missionState_;
@@ -147,9 +135,11 @@ private:
     void updateNormal();
     void updateBase();
     void updateGrid();
+    void updateExitBase();
     void updateExploreGrid();
     void updateAlign();
     void updatePlant();
+    void updateReturnHome();
     void updateRevived();
 
     void transitionSafety(SafetyState nextState);
@@ -180,6 +170,7 @@ private:
     bool isArenaMissionState() const;
     const char* missionStateName(MissionState state) const;
     const char* baseStateName(BaseState state) const;
+    const char* gridStateName(GridState state) const;
     const char* exitBaseStateName(ExitBaseState state) const;
     const char* exploreStateName(ExploreState state) const;
     const char* alignStateName(AlignState state) const;
