@@ -16,7 +16,7 @@ chassis movement helpers such as `forward()`, `right()`, and `stop_all()`.
 | `include/MotorEncoder.h` | Public DG01D-E quadrature encoder API. |
 | `src/MotoronDrive.cpp` | Motoron initialization, wheel output, mecanum drive math, stop, raw debug, and status helpers. |
 | `src/MotorEncoder.cpp` | Interrupt-based wheel encoder counting, revolutions, and RPM sampling. |
-| `接线.md` | Motoron, DG01D-E motor, encoder, and Arduino GIGA wiring notes. |
+| `WIRING.md` | Motoron, DG01D-E motor, encoder, and Arduino GIGA wiring notes. |
 
 ## Hardware Mapping
 
@@ -41,10 +41,13 @@ so the default count mode is x4 quadrature counting.
 
 | Wheel | Encoder A pin | Encoder B pin | Direction sign |
 | --- | --- | --- | --- |
-| Front left | `D22` | `D23` | `1` |
-| Front right | `D24` | `D25` | `-1` |
-| Rear left | `D26` | `D27` | `1` |
-| Rear right | `D28` | `D29` | `-1` |
+| Front left | `D25` | `D26` | `-1` |
+| Front right | `D22` | `D23` | `1` |
+| Rear left | `D28` | `D29` | `-1` |
+| Rear right | `D27` | `D28` | `1` |
+
+See `WIRING.md` for the DG01D-E 6-pin connector order. In the reference motor
+photo, encoder `A` is connector pin `4` and encoder `B` is connector pin `5`.
 
 The DG01D-E datasheet gives a `1:48` gear ratio and `6` encoder pulses per
 motor revolution. With x4 quadrature counting, the default output-shaft count
@@ -64,10 +67,10 @@ signs in `MotorConfig.h`.
 
 | Wheel | Direction sign |
 | --- | --- |
-| Front left | `1` |
-| Front right | `-1` |
-| Rear left | `1` |
-| Rear right | `-1` |
+| Front left | `-1` |
+| Front right | `1` |
+| Rear left | `-1` |
+| Rear right | `1` |
 
 So:
 
@@ -79,10 +82,10 @@ sends these raw Motoron speeds:
 
 | Motoron output | Speed |
 | --- | --- |
-| Front channel 1 | `500` |
-| Front channel 2 | `-500` |
-| Rear channel 1 | `500` |
-| Rear channel 2 | `-500` |
+| Front channel 1 | `-500` |
+| Front channel 2 | `500` |
+| Rear channel 1 | `-500` |
+| Rear channel 2 | `500` |
 
 ## Default Settings
 

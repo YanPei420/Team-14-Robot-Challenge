@@ -31,15 +31,17 @@ constexpr uint16_t MOTOR_ENCODER_COUNTS_PER_OUTPUT_REV =
     * MOTOR_GEAR_RATIO
     * MOTOR_ENCODER_EDGES_PER_PULSE;
 
-// Encoder pins 
-constexpr uint8_t MOTOR_ENCODER_FRONT_LEFT_A_PIN  = 22;
-constexpr uint8_t MOTOR_ENCODER_FRONT_LEFT_B_PIN  = 23;
-constexpr uint8_t MOTOR_ENCODER_FRONT_RIGHT_A_PIN = 24;
-constexpr uint8_t MOTOR_ENCODER_FRONT_RIGHT_B_PIN = 25;
-constexpr uint8_t MOTOR_ENCODER_REAR_LEFT_A_PIN   = 26;
-constexpr uint8_t MOTOR_ENCODER_REAR_LEFT_B_PIN   = 27;
-constexpr uint8_t MOTOR_ENCODER_REAR_RIGHT_A_PIN  = 28;
-constexpr uint8_t MOTOR_ENCODER_REAR_RIGHT_B_PIN  = 29; 
+// Encoder A/B pins on Arduino GIGA.
+// DG01D-E connector order in the reference photo:
+// pin 4 = Encoder A, pin 5 = Encoder B.
+constexpr uint8_t MOTOR_ENCODER_FRONT_LEFT_A_PIN  = 24; // FL encoder A
+constexpr uint8_t MOTOR_ENCODER_FRONT_LEFT_B_PIN  = 25; // FL encoder B
+constexpr uint8_t MOTOR_ENCODER_FRONT_RIGHT_A_PIN = 22; // FR encoder A
+constexpr uint8_t MOTOR_ENCODER_FRONT_RIGHT_B_PIN = 23; // FR encoder B
+constexpr uint8_t MOTOR_ENCODER_REAR_LEFT_A_PIN   = 26; // RL encoder A
+constexpr uint8_t MOTOR_ENCODER_REAR_LEFT_B_PIN   = 27; // RL encoder B
+constexpr uint8_t MOTOR_ENCODER_REAR_RIGHT_A_PIN  = 28; // RR encoder A
+constexpr uint8_t MOTOR_ENCODER_REAR_RIGHT_B_PIN  = 29; // RR encoder B
 
 constexpr int8_t MOTOR_ENCODER_FRONT_LEFT_DIRECTION =
     MOTOR_FRONT_LEFT_DIRECTION;
