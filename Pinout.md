@@ -69,4 +69,4 @@
 | Pin | Solar Panel | Description |
 |:----|:----------|:------------|
 | GND | GND | Black |
-| 3.3V | VCC | Red |
+| A2 | VCC | Red |
