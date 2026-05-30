@@ -58,6 +58,15 @@
 
 | Pin | Micromotor | Description |
 |:----|:----------|:------------|
+| GND | GND | Blue |
+| 3.3V | VCC | Black |
+| D | C1 (encoder pin) | Green |
+| D | C2 (encoder pin) | Yellow |
+| Channel 3A (Motor Shield) | M1 | White |
+| Channel 3B (Motor Shield) | M2 | Red |
 
-| Pin | UV Panel | Description |
+
+| Pin | Solar Panel | Description |
 |:----|:----------|:------------|
+| GND | GND | Black |
+| A2 | VCC | Red |
