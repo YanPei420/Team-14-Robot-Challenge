@@ -9,8 +9,8 @@
 
 #define IR_SENSOR_COUNT 9
 
-// Pins left to right.
-constexpr uint8_t IR_PINS[IR_SENSOR_COUNT] = {45, 46, 47, 48, 49, 50, 51, 52, 53};
+// Pins left to right. Wiring order is IR1-IR9 = 1,2,3,6,5,4,7,8,9.
+constexpr uint8_t IR_PINS[IR_SENSOR_COUNT] = {45, 46, 47, 50, 49, 48, 51, 52, 53};
 
 // ======================================================
 // RC READ TIMING

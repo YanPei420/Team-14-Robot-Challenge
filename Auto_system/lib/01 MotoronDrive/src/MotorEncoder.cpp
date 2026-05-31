@@ -30,6 +30,7 @@ MotorEncoder::MotorEncoder(
       direction_(direction < 0 ? -1 : 1),
       countsPerRevolution_(countsPerRevolution),
       slot_(MOTOR_ENCODER_SLOT_COUNT),
+      useInterrupts_(false),
       count_(0),
       lastState_(0),
       lastSampleCount_(0),
@@ -37,17 +38,13 @@ MotorEncoder::MotorEncoder(
 {
 }
 
-bool MotorEncoder::begin(uint8_t interruptSlot, bool usePullups)
+bool MotorEncoder::begin(
+    uint8_t interruptSlot,
+    bool usePullups,
+    bool useInterrupts
+)
 {
     if (interruptSlot >= MOTOR_ENCODER_SLOT_COUNT)
-    {
-        return false;
-    }
-
-    const int interruptA = digitalPinToInterrupt(pinA_);
-    const int interruptB = digitalPinToInterrupt(pinB_);
-
-    if (interruptA == NOT_AN_INTERRUPT || interruptB == NOT_AN_INTERRUPT)
     {
         return false;
     }
@@ -57,12 +54,31 @@ bool MotorEncoder::begin(uint8_t interruptSlot, bool usePullups)
 
     noInterrupts();
     slot_ = interruptSlot;
+    useInterrupts_ = useInterrupts;
     count_ = 0;
     lastState_ = readState();
     lastSampleCount_ = 0;
     lastSampleMs_ = millis();
-    slots_[interruptSlot] = this;
+    slots_[interruptSlot] = useInterrupts_ ? this : nullptr;
     interrupts();
+
+    if (!useInterrupts_)
+    {
+        return true;
+    }
+
+    const int interruptA = digitalPinToInterrupt(pinA_);
+    const int interruptB = digitalPinToInterrupt(pinB_);
+
+    if (interruptA == NOT_AN_INTERRUPT || interruptB == NOT_AN_INTERRUPT)
+    {
+        noInterrupts();
+        slots_[interruptSlot] = nullptr;
+        slot_ = MOTOR_ENCODER_SLOT_COUNT;
+        useInterrupts_ = false;
+        interrupts();
+        return false;
+    }
 
     switch (interruptSlot)
     {
@@ -89,6 +105,14 @@ bool MotorEncoder::begin(uint8_t interruptSlot, bool usePullups)
     return true;
 }
 
+void MotorEncoder::poll()
+{
+    if (!useInterrupts_)
+    {
+        handleInterrupt();
+    }
+}
+
 int32_t MotorEncoder::read_count() const
 {
     return readCountAtomic();
@@ -96,11 +120,14 @@ int32_t MotorEncoder::read_count() const
 
 int32_t MotorEncoder::read_and_reset()
 {
+    poll();
+
     const uint32_t now = millis();
 
     noInterrupts();
     const int32_t oldCount = count_;
     count_ = 0;
+    lastState_ = readState();
     lastSampleCount_ = 0;
     lastSampleMs_ = now;
     interrupts();
@@ -114,6 +141,7 @@ void MotorEncoder::reset_count(int32_t count)
 
     noInterrupts();
     count_ = count;
+    lastState_ = readState();
     lastSampleCount_ = count;
     lastSampleMs_ = now;
     interrupts();
@@ -131,6 +159,8 @@ float MotorEncoder::read_revolutions() const
 
 float MotorEncoder::sample_rpm()
 {
+    poll();
+
     const uint32_t now = millis();
     const int32_t currentCount = readCountAtomic();
     const uint32_t elapsedMs = now - lastSampleMs_;
@@ -256,6 +286,14 @@ bool MotoronDriveEncoders::begin()
     return ok;
 }
 
+void MotoronDriveEncoders::poll()
+{
+    frontLeft_.poll();
+    frontRight_.poll();
+    rearLeft_.poll();
+    rearRight_.poll();
+}
+
 void MotoronDriveEncoders::reset_counts()
 {
     frontLeft_.reset_count();
@@ -297,6 +335,8 @@ void MotoronDriveEncoders::sample_rpm(
     float& rearRight
 )
 {
+    poll();
+
     frontLeft = frontLeft_.sample_rpm();
     frontRight = frontRight_.sample_rpm();
     rearLeft = rearLeft_.sample_rpm();

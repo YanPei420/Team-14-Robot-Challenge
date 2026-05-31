@@ -92,7 +92,8 @@ bool LidarSensor::parseFrame(uint8_t* buf)
 {
     int16_t  dist = (int16_t)(buf[2] | ((uint16_t)buf[3] << 8));
     uint16_t amp  = (uint16_t)(buf[4] | ((uint16_t)buf[5] << 8));
-    float    temp = (buf[6] | ((uint16_t)buf[7] << 8)) / 100.0f;
+    uint16_t rawTemp = (uint16_t)(buf[6] | ((uint16_t)buf[7] << 8));
+    float    temp = rawTemp / 8.0f - 256.0f;
 
     if (amp < LIDAR_MIN_STRENGTH)
     {

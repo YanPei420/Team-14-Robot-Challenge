@@ -15,7 +15,7 @@ chassis movement helpers such as `forward()`, `right()`, and `stop_all()`.
 | `include/MotoronDrive.h` | Public `MotoronDrive` API. |
 | `include/MotorEncoder.h` | Public DG01D-E quadrature encoder API. |
 | `src/MotoronDrive.cpp` | Motoron initialization, wheel output, mecanum drive math, stop, raw debug, and status helpers. |
-| `src/MotorEncoder.cpp` | Interrupt-based wheel encoder counting, revolutions, and RPM sampling. |
+| `src/MotorEncoder.cpp` | Polling wheel encoder counting, revolutions, and RPM sampling, with optional interrupt mode. |
 | `WIRING.md` | Motoron, DG01D-E motor, encoder, and Arduino GIGA wiring notes. |
 
 ## Hardware Mapping
@@ -36,15 +36,17 @@ The controllers use `Wire1`.
 
 ## Encoder Mapping
 
-DG01D-E encoder pins are read with interrupt handlers on both A and B channels,
-so the default count mode is x4 quadrature counting.
+DG01D-E encoder pins are read on both A and B channels, so the default count
+mode is x4 quadrature counting. On Arduino GIGA the default backend is polling
+(`MOTOR_ENCODER_USE_INTERRUPTS = false`) because the Mbed interrupt path can
+fault on some D22-D29 pins during startup.
 
 | Wheel | Encoder A pin | Encoder B pin | Direction sign |
 | --- | --- | --- | --- |
-| Front left | `D25` | `D26` | `-1` |
+| Front left | `D24` | `D25` | `-1` |
 | Front right | `D22` | `D23` | `1` |
-| Rear left | `D28` | `D29` | `-1` |
-| Rear right | `D27` | `D28` | `1` |
+| Rear left | `D26` | `D27` | `-1` |
+| Rear right | `D28` | `D29` | `1` |
 
 See `WIRING.md` for the DG01D-E 6-pin connector order. In the reference motor
 photo, encoder `A` is connector pin `4` and encoder `B` is connector pin `5`.
@@ -169,6 +171,57 @@ scaled down proportionally.
 | `set_max_speed(maxSpeed)` | Set the clamp limit used by normal commands. |
 | `get_max_speed()` | Read the current clamp limit. |
 
+## Encoder Speed Control
+
+`MotoronDrive` can use the wheel encoders as a closed-loop speed controller.
+Normal movement calls such as `drive()`, `forward()`, and `rotate_left()` still
+set logical wheel targets. When encoder speed control is enabled, call
+`update_encoder_speed_control()` frequently from `loop()` so the library can
+sample RPM and adjust the actual Motoron outputs.
+
+```cpp
+MotoronDrive Robot(MOTORON_ADDR_FRONT, MOTORON_ADDR_REAR);
+
+void setup()
+{
+    Robot.begin();
+    Robot.set_max_speed(MOTOR_MAX_SPEED);
+
+    if (!Robot.begin_encoder_speed_control())
+    {
+        Serial.println("encoder speed control failed");
+    }
+}
+
+void loop()
+{
+    Robot.forward(300);
+    Robot.update_encoder_speed_control();
+}
+```
+
+| Method | Description |
+| --- | --- |
+| `begin_encoder_speed_control(config)` | Starts all four encoder readers and enables closed-loop speed control. |
+| `set_encoder_speed_control_enabled(enabled)` | Enables or disables the closed-loop correction after the encoders have started. |
+| `update_encoder_speed_control()` | Samples encoder RPM and updates Motoron outputs when the control interval has elapsed. |
+| `reset_encoder_speed_control()` | Clears PID state and encoder counts. |
+| `set_encoder_speed_control_config(config)` | Updates the speed-control gains and limits. |
+| `get_applied_wheel_speeds(fl, fr, rl, rr)` | Reads the corrected logical outputs currently being sent to the wheels. |
+| `get_encoder_rpm(fl, fr, rl, rr)` | Reads the most recent measured wheel RPM values. |
+| `get_target_rpm(fl, fr, rl, rr)` | Reads the RPM targets derived from logical wheel speeds. |
+
+The default controller maps `MOTOR_MAX_SPEED` to
+`MOTOR_SPEED_CONTROL_MAX_WHEEL_RPM`, then applies PID correction:
+
+```cpp
+output = target_speed + PID(target_rpm - measured_rpm)
+```
+
+Tune `MOTOR_SPEED_CONTROL_MAX_WHEEL_RPM`, `MOTOR_SPEED_CONTROL_KP`,
+`MOTOR_SPEED_CONTROL_KI`, and `MOTOR_SPEED_CONTROL_MAX_CORRECTION` in
+`MotorConfig.h` if the wheels overshoot, undershoot, or oscillate.
+
 ## Raw Debug API
 
 Raw methods send speeds directly to Motoron channels without applying wheel
@@ -184,6 +237,9 @@ direction signs. They still clamp to the configured maximum speed.
 When `immediate` is `true`, raw methods use `setSpeedNow()`. Otherwise they use
 `setSpeed()`.
 
+Calling any raw method disables encoder speed control so the raw command is not
+overwritten by the closed-loop controller.
+
 ## Status Helpers
 
 | Method | Description |
@@ -195,7 +251,8 @@ When `immediate` is `true`, raw methods use `setSpeedNow()`. Otherwise they use
 
 | Method | Description |
 | --- | --- |
-| `MotoronDriveEncoders::begin()` | Starts all four encoder interrupt readers. |
+| `MotoronDriveEncoders::begin()` | Starts all four encoder readers. |
+| `poll()` | Updates encoder counts when using the default polling backend. |
 | `reset_counts()` | Resets all four wheel counts to zero. |
 | `get_counts(fl, fr, rl, rr)` | Reads signed x4 quadrature counts for all wheels. |
 | `get_revolutions(fl, fr, rl, rr)` | Converts counts to output-shaft revolutions. |

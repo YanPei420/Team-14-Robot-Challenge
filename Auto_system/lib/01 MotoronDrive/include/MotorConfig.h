@@ -22,6 +22,7 @@ constexpr int8_t MOTOR_REAR_RIGHT_DIRECTION = 1;
 
 constexpr uint8_t MOTOR_ENCODER_SLOT_COUNT = 4;
 constexpr bool MOTOR_ENCODER_USE_INTERNAL_PULLUPS = true;
+constexpr bool MOTOR_ENCODER_USE_INTERRUPTS = false;
 
 constexpr uint16_t MOTOR_GEAR_RATIO = 48;
 constexpr uint16_t MOTOR_ENCODER_PULSES_PER_MOTOR_REV = 6;
@@ -51,3 +52,17 @@ constexpr int8_t MOTOR_ENCODER_REAR_LEFT_DIRECTION =
     MOTOR_REAR_LEFT_DIRECTION;
 constexpr int8_t MOTOR_ENCODER_REAR_RIGHT_DIRECTION =
     MOTOR_REAR_RIGHT_DIRECTION;
+
+// ======================================================
+// ENCODER SPEED CONTROL
+// ======================================================
+
+constexpr uint16_t MOTOR_SPEED_CONTROL_INTERVAL_MS = 50;
+constexpr float MOTOR_SPEED_CONTROL_MAX_WHEEL_RPM = 180.0f;
+constexpr float MOTOR_SPEED_CONTROL_KP = 2.0f;
+constexpr float MOTOR_SPEED_CONTROL_KI = 0.25f;
+constexpr float MOTOR_SPEED_CONTROL_KD = 0.0f;
+constexpr float MOTOR_SPEED_CONTROL_RPM_DEADBAND = 2.0f;
+constexpr float MOTOR_SPEED_CONTROL_INTEGRAL_LIMIT = 300.0f;
+constexpr int16_t MOTOR_SPEED_CONTROL_MAX_CORRECTION = 300;
+constexpr int16_t MOTOR_SPEED_CONTROL_MIN_OUTPUT = 60;
