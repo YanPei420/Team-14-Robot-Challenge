@@ -1,108 +1,215 @@
 #include <Arduino.h>
 #include "LidarSensor.h"
-#include "LidarConfig.h"
 #include "MotoronDrive.h"
 #include "MotorConfig.h"
+#include "LidarConfig.h"
 
 namespace {
 
-// ── tuning ────────────────────────────────────────────────────────────
-constexpr float    OBSTACLE_TRIGGER_CM  = 8.0f;   // front LIDAR threshold
-constexpr int16_t  FORWARD_SPEED        = 300;
-constexpr int16_t  TURN_SPEED           = 250;     // in-place turn speed
-constexpr uint32_t TURN_DURATION_MS     = 600;     // how long to turn before going straight
-constexpr uint32_t DEBUG_INTERVAL_MS    = 200;
-// ──────────────────────────────────────────────────────────────────────
-
+// ── sensor instances ──────────────────────────────────────────────────
 LidarSensor  lidarLeft (LIDAR_SERIAL_LEFT);
 LidarSensor  lidarRight(LIDAR_SERIAL_RIGHT);
 LidarSensor  lidarFront(LIDAR_SERIAL_FRONT);
 MotoronDrive robot(MOTORON_ADDR_FRONT, MOTORON_ADDR_REAR);
 
-enum class State { FORWARD, TURNING_LEFT, TURNING_RIGHT };
-State   currentState  = State::FORWARD;
-uint32_t turnStartMs  = 0;
+// ── state ────────────────────────────────────────────────────────────
+// State machine — keeps logic explicit and debuggable.
+enum AvoidState {
+    DRIVING_FORWARD,
+    TURNING_LEFT,
+    TURNING_RIGHT,
+    UTURNING
+};
 
+AvoidState state = DRIVING_FORWARD;
+
+// ── helpers ──────────────────────────────────────────────────────────
 bool isFresh(LidarSensor& s)
 {
     return s.isValid()
         && (millis() - s.getLastUpdateMs()) < LIDAR_TIMEOUT_MS;
 }
 
-bool frontBlocked()
+// Read a LIDAR distance, returning a large sentinel value if invalid
+// or stale. Using a large value (rather than -1) means downstream
+// "is this side clear?" checks naturally treat invalid as "clear" —
+// which is the safer assumption for SIDE sensors (we'd rather attempt
+// a turn into uncertain space than commit to a U-turn unnecessarily).
+// For FRONT sensor we treat invalid as "blocked" instead — see below.
+float readSideDistance(LidarSensor& s)
 {
-    return isFresh(lidarFront)
-        && lidarFront.getDistanceCM() > 0
-        && lidarFront.getDistanceCM() < OBSTACLE_TRIGGER_CM;
+    if (!isFresh(s)) return 1000.0f;        // treat unknown side as open
+    int16_t raw = s.getDistanceCM();
+    if (raw <= 0) return 1000.0f;
+    return (float)raw;
 }
 
-void run()
+// Front sensor: treat invalid as BLOCKED (small value).
+// Safer to stop/turn on uncertainty than to plow forward blind.
+float readFrontDistance()
 {
-    // ── currently turning — keep turning until TURN_DURATION_MS elapses ──
-    if (currentState == State::TURNING_LEFT || currentState == State::TURNING_RIGHT)
-    {
-        if (millis() - turnStartMs < TURN_DURATION_MS)
-        {
-            if (currentState == State::TURNING_LEFT)
-                robot.rotate_left(TURN_SPEED);
-            else
-                robot.rotate_right(TURN_SPEED);
-            return;
-        }
-        // Turn complete — resume forward
-        currentState = State::FORWARD;
+    if (!isFresh(lidarFront)) return 0.0f;  // treat unknown front as blocked
+    int16_t raw = lidarFront.getDistanceCM();
+    if (raw <= 0) return 0.0f;
+    return (float)raw;
+}
+
+void updateAllLidars()
+{
+    lidarLeft.update();
+    lidarRight.update();
+    lidarFront.update();
+}
+
+// ── decision logic ───────────────────────────────────────────────────
+
+// Called when front becomes blocked. Decides which way to turn,
+// or whether to U-turn.
+AvoidState chooseAvoidDirection()
+{
+    float left  = readSideDistance(lidarLeft);
+    float right = readSideDistance(lidarRight);
+
+    bool leftClear  = (left  > SIDE_MIN_CLEAR_CM);
+    bool rightClear = (right > SIDE_MIN_CLEAR_CM);
+
+    // Both sides blocked → U-turn.
+    if (!leftClear && !rightClear) {
+        Serial.println("[avoid] both sides blocked -> U-turn");
+        return UTURNING;
     }
 
-    // ── moving forward ────────────────────────────────────────────────
-    if (!frontBlocked())
-    {
-        robot.forward(FORWARD_SPEED);
+    // Only one side clear → take it.
+    if (leftClear && !rightClear) {
+        Serial.println("[avoid] only left clear -> turn left");
+        return TURNING_LEFT;
+    }
+    if (!leftClear && rightClear) {
+        Serial.println("[avoid] only right clear -> turn right");
+        return TURNING_RIGHT;
+    }
+
+    // Both sides clear → pick the wider one, with tie-breaker.
+    float diff = left - right;
+    if (fabs(diff) < SIDE_TIE_THRESHOLD_CM) {
+        Serial.println("[avoid] tie -> turn right (default)");
+        return TURNING_RIGHT;          // tiebreaker
+    }
+    if (diff > 0) {
+        Serial.print("[avoid] left wider (L=");
+        Serial.print(left); Serial.print(" R="); Serial.print(right);
+        Serial.println(") -> turn left");
+        return TURNING_LEFT;
+    } else {
+        Serial.print("[avoid] right wider (L=");
+        Serial.print(left); Serial.print(" R="); Serial.print(right);
+        Serial.println(") -> turn right");
+        return TURNING_RIGHT;
+    }
+}
+
+// ── state actions ────────────────────────────────────────────────────
+// Each state runs one iteration of `loop()`. The state machine
+// is checked again next iteration — this keeps things non-blocking
+// so LIDAR updates and debug prints keep flowing.
+
+void runDrivingForward()
+{
+    float front = readFrontDistance();
+
+    if (front < OBSTACLE_TRIGGER_CM) {
+        robot.drive(0, 0, 0);           // stop before deciding
+        state = chooseAvoidDirection();
         return;
     }
 
-    // ── obstacle detected — compare left vs right ─────────────────────
-    float leftDist  = isFresh(lidarLeft)  ? (float)lidarLeft.getDistanceCM()  : 0.0f;
-    float rightDist = isFresh(lidarRight) ? (float)lidarRight.getDistanceCM() : 0.0f;
+    robot.drive(FORWARD_SPEED, 0, 0);
+}
 
-    robot.stop();
+void runTurningLeft()
+{
+    float front = readFrontDistance();
 
-    if (leftDist >= rightDist)
-    {
-        // More space on the left → turn left
-        currentState = State::TURNING_LEFT;
-        Serial.print("[OBS] L="); Serial.print(leftDist);
-        Serial.print(" R="); Serial.print(rightDist);
-        Serial.println(" → turning LEFT");
-    }
-    else
-    {
-        // More space on the right → turn right
-        currentState = State::TURNING_RIGHT;
-        Serial.print("[OBS] L="); Serial.print(leftDist);
-        Serial.print(" R="); Serial.print(rightDist);
-        Serial.println(" → turning RIGHT");
+    // Hysteresis: only resume forward when comfortably clear.
+    if (front > OBSTACLE_CLEAR_CM) {
+        robot.drive(0, 0, 0);
+        Serial.println("[avoid] front clear -> resume forward");
+        state = DRIVING_FORWARD;
+        return;
     }
 
-    turnStartMs = millis();
+    // Pivot left in place.
+    // NOTE: sign convention — verify on robot.
+    // If positive rotation = CW (right), use -AVOID_TURN_SPEED here.
+    robot.drive(0, 0, -AVOID_TURN_SPEED);
+}
+
+void runTurningRight()
+{
+    float front = readFrontDistance();
+
+    if (front > OBSTACLE_CLEAR_CM) {
+        robot.drive(0, 0, 0);
+        Serial.println("[avoid] front clear -> resume forward");
+        state = DRIVING_FORWARD;
+        return;
+    }
+
+    robot.drive(0, 0, AVOID_TURN_SPEED);
+}
+
+void runUturning()
+{
+    float front = readFrontDistance();
+    float left  = readSideDistance(lidarLeft);
+    float right = readSideDistance(lidarRight);
+
+    // U-turn complete when front is clear AND at least one side has
+    // opened up — this prevents stopping mid-spin while still facing
+    // a different part of the same dead-end wall.
+    bool frontOpen = (front > OBSTACLE_CLEAR_CM);
+    bool sideOpen  = (left > SIDE_MIN_CLEAR_CM) || (right > SIDE_MIN_CLEAR_CM);
+
+    if (frontOpen && sideOpen) {
+        robot.drive(0, 0, 0);
+        Serial.println("[avoid] U-turn complete -> resume forward");
+        state = DRIVING_FORWARD;
+        return;
+    }
+
+    // Spin in place (direction: right, by convention).
+    robot.drive(0, 0, UTURN_SPEED);
+}
+
+// ── debug ────────────────────────────────────────────────────────────
+const char* stateName(AvoidState s)
+{
+    switch (s) {
+        case DRIVING_FORWARD: return "FWD";
+        case TURNING_LEFT:    return "TL";
+        case TURNING_RIGHT:   return "TR";
+        case UTURNING:        return "UTURN";
+    }
+    return "?";
 }
 
 void printDebug()
 {
-    const char* stateName =
-        currentState == State::TURNING_LEFT  ? "TURN_L" :
-        currentState == State::TURNING_RIGHT ? "TURN_R" : "FWD";
+    Serial.print("["); Serial.print(stateName(state)); Serial.print("] ");
 
-    Serial.print("["); Serial.print(stateName); Serial.print("]");
-    Serial.print("  F=");
-    if (isFresh(lidarFront)) { Serial.print(lidarFront.getDistanceCM()); Serial.print("cm"); }
-    else                     { Serial.print("STALE"); }
-    Serial.print("  L=");
-    if (isFresh(lidarLeft))  { Serial.print(lidarLeft.getDistanceCM());  Serial.print("cm"); }
-    else                     { Serial.print("STALE"); }
-    Serial.print("  R=");
-    if (isFresh(lidarRight)) { Serial.print(lidarRight.getDistanceCM()); Serial.print("cm"); }
-    else                     { Serial.print("STALE"); }
-    Serial.println();
+    Serial.print("L=");
+    if (isFresh(lidarLeft))  Serial.print(lidarLeft.getDistanceCM());
+    else                     Serial.print("--");
+
+    Serial.print(" F=");
+    if (isFresh(lidarFront)) Serial.print(lidarFront.getDistanceCM());
+    else                     Serial.print("--");
+
+    Serial.print(" R=");
+    if (isFresh(lidarRight)) Serial.print(lidarRight.getDistanceCM());
+    else                     Serial.print("--");
+
+    Serial.println("cm");
 }
 
 } // namespace
@@ -112,7 +219,7 @@ void setup()
     Serial.begin(115200);
     uint32_t t = millis();
     while (!Serial && millis() - t < 3000) { ; }
-    Serial.println("Obstacle detection started.");
+    Serial.println("Obstacle avoidance started.");
 
     lidarLeft.begin();
     lidarRight.begin();
@@ -126,11 +233,14 @@ void setup()
 
 void loop()
 {
-    lidarLeft.update();
-    lidarRight.update();
-    lidarFront.update();
+    updateAllLidars();
 
-    run();
+    switch (state) {
+        case DRIVING_FORWARD: runDrivingForward(); break;
+        case TURNING_LEFT:    runTurningLeft();    break;
+        case TURNING_RIGHT:   runTurningRight();   break;
+        case UTURNING:        runUturning();       break;
+    }
 
     static uint32_t lastDebug = 0;
     if (millis() - lastDebug >= DEBUG_INTERVAL_MS) {

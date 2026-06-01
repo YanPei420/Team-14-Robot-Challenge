@@ -77,7 +77,7 @@
 
 // Enables per-frame prints inside LidarSensor (checksum errors, low strength, distance).
 // Set false for normal operation — generates a lot of serial output.
-#define LIDAR_DEBUG             true
+#define LIDAR_DEBUG             false
 
 #define DEBUG_INTERVAL_MS       200
 
