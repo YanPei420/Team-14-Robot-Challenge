@@ -20,10 +20,6 @@ private:
     uint32_t      checksumErrorCount;
     uint32_t      lowStrengthCount;
     uint32_t      droppedByteCount;
-    uint8_t       frameBuffer[9];
-    uint8_t       frameIndex;
-
-    bool parseFrame(uint8_t* buf);
 
 public:
     LidarSensor(HardwareSerial& serialPort);
@@ -38,7 +34,6 @@ public:
     uint16_t      getStrength();
     float         getTemperature();
     unsigned long getLastUpdateMs();
-    int           getBytesAvailable();
     uint32_t      getValidFrameCount();
     uint32_t      getChecksumErrorCount();
     uint32_t      getLowStrengthCount();
