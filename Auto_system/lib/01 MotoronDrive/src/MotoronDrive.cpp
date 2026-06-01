@@ -3,11 +3,20 @@
 MotoronDrive::MotoronDrive(uint8_t frontAddress, uint8_t rearAddress)
     : front_(frontAddress),
       rear_(rearAddress),
+      encoders_(),
       maxSpeed_(MOTOR_MAX_SPEED),
-      frontLeft_(0),
-      frontRight_(0),
-      rearLeft_(0),
-      rearRight_(0)
+      targetSpeed_{0, 0, 0, 0},
+      outputSpeed_{0, 0, 0, 0},
+      speedControlConfig_(),
+      encoderSpeedControlReady_(false),
+      encoderSpeedControlEnabled_(false),
+      lastSpeedControlMs_(0),
+      measuredRPM_{0.0f, 0.0f, 0.0f, 0.0f},
+      targetRPM_{0.0f, 0.0f, 0.0f, 0.0f},
+      speedError_{0.0f, 0.0f, 0.0f, 0.0f},
+      lastSpeedError_{0.0f, 0.0f, 0.0f, 0.0f},
+      speedIntegral_{0.0f, 0.0f, 0.0f, 0.0f},
+      speedCorrection_{0.0f, 0.0f, 0.0f, 0.0f}
 {
 }
 
@@ -37,6 +46,233 @@ void MotoronDrive::setupController(MotoronI2C& controller)
     controller.setMaxDeceleration(1, MOTOR_MAX_DECELERATION);
     controller.setMaxAcceleration(2, MOTOR_MAX_ACCELERATION);
     controller.setMaxDeceleration(2, MOTOR_MAX_DECELERATION);
+}
+
+void MotoronDrive::resetEncoderSpeedControlState()
+{
+    for (uint8_t i = 0; i < WHEEL_COUNT; i++)
+    {
+        measuredRPM_[i] = 0.0f;
+        targetRPM_[i] = 0.0f;
+        speedError_[i] = 0.0f;
+        lastSpeedError_[i] = 0.0f;
+        speedIntegral_[i] = 0.0f;
+        speedCorrection_[i] = 0.0f;
+    }
+
+    lastSpeedControlMs_ = millis();
+
+    if (encoderSpeedControlReady_)
+    {
+        encoders_.reset_counts();
+    }
+}
+
+void MotoronDrive::setTargetSpeeds(
+    int16_t frontLeft,
+    int16_t frontRight,
+    int16_t rearLeft,
+    int16_t rearRight
+)
+{
+    targetSpeed_[FRONT_LEFT] = clampSpeed(frontLeft);
+    targetSpeed_[FRONT_RIGHT] = clampSpeed(frontRight);
+    targetSpeed_[REAR_LEFT] = clampSpeed(rearLeft);
+    targetSpeed_[REAR_RIGHT] = clampSpeed(rearRight);
+}
+
+void MotoronDrive::writeWheelOutputs(
+    int16_t frontLeft,
+    int16_t frontRight,
+    int16_t rearLeft,
+    int16_t rearRight,
+    bool immediate
+)
+{
+    outputSpeed_[FRONT_LEFT] = clampSpeed(frontLeft);
+    outputSpeed_[FRONT_RIGHT] = clampSpeed(frontRight);
+    outputSpeed_[REAR_LEFT] = clampSpeed(rearLeft);
+    outputSpeed_[REAR_RIGHT] = clampSpeed(rearRight);
+
+    if (immediate)
+    {
+        front_.setSpeedNow(
+            MOTORON_CHANNEL_FRONT_LEFT,
+            applyDirection(outputSpeed_[FRONT_LEFT], MOTOR_FRONT_LEFT_DIRECTION)
+        );
+        front_.setSpeedNow(
+            MOTORON_CHANNEL_FRONT_RIGHT,
+            applyDirection(outputSpeed_[FRONT_RIGHT], MOTOR_FRONT_RIGHT_DIRECTION)
+        );
+        rear_.setSpeedNow(
+            MOTORON_CHANNEL_REAR_LEFT,
+            applyDirection(outputSpeed_[REAR_LEFT], MOTOR_REAR_LEFT_DIRECTION)
+        );
+        rear_.setSpeedNow(
+            MOTORON_CHANNEL_REAR_RIGHT,
+            applyDirection(outputSpeed_[REAR_RIGHT], MOTOR_REAR_RIGHT_DIRECTION)
+        );
+        return;
+    }
+
+    front_.setSpeed(
+        MOTORON_CHANNEL_FRONT_LEFT,
+        applyDirection(outputSpeed_[FRONT_LEFT], MOTOR_FRONT_LEFT_DIRECTION)
+    );
+    front_.setSpeed(
+        MOTORON_CHANNEL_FRONT_RIGHT,
+        applyDirection(outputSpeed_[FRONT_RIGHT], MOTOR_FRONT_RIGHT_DIRECTION)
+    );
+    rear_.setSpeed(
+        MOTORON_CHANNEL_REAR_LEFT,
+        applyDirection(outputSpeed_[REAR_LEFT], MOTOR_REAR_LEFT_DIRECTION)
+    );
+    rear_.setSpeed(
+        MOTORON_CHANNEL_REAR_RIGHT,
+        applyDirection(outputSpeed_[REAR_RIGHT], MOTOR_REAR_RIGHT_DIRECTION)
+    );
+}
+
+void MotoronDrive::writeTargetsWithCorrections(bool immediate)
+{
+    int16_t output[WHEEL_COUNT];
+
+    for (uint8_t i = 0; i < WHEEL_COUNT; i++)
+    {
+        if (targetSpeed_[i] == 0)
+        {
+            output[i] = 0;
+            continue;
+        }
+
+        const float corrected = targetSpeed_[i] + speedCorrection_[i];
+        output[i] = clampSpeed(static_cast<int16_t>(corrected));
+
+        if (targetSpeed_[i] > 0 && output[i] < 0)
+        {
+            output[i] = 0;
+        }
+        else if (targetSpeed_[i] < 0 && output[i] > 0)
+        {
+            output[i] = 0;
+        }
+    }
+
+    writeWheelOutputs(
+        output[FRONT_LEFT],
+        output[FRONT_RIGHT],
+        output[REAR_LEFT],
+        output[REAR_RIGHT],
+        immediate
+    );
+}
+
+float MotoronDrive::absFloat(float value) const
+{
+    return value < 0.0f ? -value : value;
+}
+
+float MotoronDrive::targetSpeedToRPM(int16_t speed) const
+{
+    if (maxSpeed_ <= 0 || speedControlConfig_.maxWheelRPM <= 0.0f)
+    {
+        return 0.0f;
+    }
+
+    return static_cast<float>(speed)
+        * speedControlConfig_.maxWheelRPM
+        / static_cast<float>(maxSpeed_);
+}
+
+int16_t MotoronDrive::computeControlledOutput(
+    uint8_t wheel,
+    int16_t targetSpeed,
+    float measuredRPM,
+    float dt
+)
+{
+    targetRPM_[wheel] = targetSpeedToRPM(targetSpeed);
+
+    if (targetSpeed == 0)
+    {
+        speedError_[wheel] = 0.0f;
+        lastSpeedError_[wheel] = 0.0f;
+        speedIntegral_[wheel] = 0.0f;
+        speedCorrection_[wheel] = 0.0f;
+        return 0;
+    }
+
+    float error = targetRPM_[wheel] - measuredRPM;
+
+    if (absFloat(error) < speedControlConfig_.rpmDeadband)
+    {
+        error = 0.0f;
+    }
+
+    speedError_[wheel] = error;
+    speedIntegral_[wheel] += error * dt;
+
+    if (speedIntegral_[wheel] > speedControlConfig_.integralLimit)
+    {
+        speedIntegral_[wheel] = speedControlConfig_.integralLimit;
+    }
+    else if (speedIntegral_[wheel] < -speedControlConfig_.integralLimit)
+    {
+        speedIntegral_[wheel] = -speedControlConfig_.integralLimit;
+    }
+
+    const float derivative = dt > 0.0f
+        ? (error - lastSpeedError_[wheel]) / dt
+        : 0.0f;
+
+    float correction =
+        speedControlConfig_.kp * error
+        + speedControlConfig_.ki * speedIntegral_[wheel]
+        + speedControlConfig_.kd * derivative;
+
+    const int16_t maxCorrection =
+        speedControlConfig_.maxCorrection < 0
+            ? -speedControlConfig_.maxCorrection
+            : speedControlConfig_.maxCorrection;
+
+    if (correction > maxCorrection)
+    {
+        correction = maxCorrection;
+    }
+    else if (correction < -maxCorrection)
+    {
+        correction = -maxCorrection;
+    }
+
+    speedCorrection_[wheel] = correction;
+    lastSpeedError_[wheel] = error;
+
+    int16_t output = clampSpeed(static_cast<int16_t>(targetSpeed + correction));
+
+    if (targetSpeed > 0 && output < 0)
+    {
+        output = 0;
+    }
+    else if (targetSpeed < 0 && output > 0)
+    {
+        output = 0;
+    }
+
+    const int16_t minOutput =
+        speedControlConfig_.minOutput < 0
+            ? -speedControlConfig_.minOutput
+            : speedControlConfig_.minOutput;
+
+    if (targetSpeed > 0 && output > 0 && output < minOutput)
+    {
+        output = minOutput;
+    }
+    else if (targetSpeed < 0 && output < 0 && output > -minOutput)
+    {
+        output = -minOutput;
+    }
+
+    return clampSpeed(output);
 }
 
 int16_t MotoronDrive::clampSpeed(int16_t speed) const
@@ -74,40 +310,149 @@ int16_t MotoronDrive::get_max_speed() const
     return maxSpeed_;
 }
 
+bool MotoronDrive::begin_encoder_speed_control(
+    const MotoronSpeedControlConfig& config
+)
+{
+    speedControlConfig_ = config;
+
+    if (!encoderSpeedControlReady_)
+    {
+        encoderSpeedControlReady_ = encoders_.begin();
+    }
+
+    resetEncoderSpeedControlState();
+    encoderSpeedControlEnabled_ = encoderSpeedControlReady_;
+    return encoderSpeedControlReady_;
+}
+
+bool MotoronDrive::set_encoder_speed_control_enabled(bool enabled)
+{
+    if (enabled && !encoderSpeedControlReady_)
+    {
+        return false;
+    }
+
+    encoderSpeedControlEnabled_ = enabled;
+    resetEncoderSpeedControlState();
+
+    if (!enabled)
+    {
+        writeWheelOutputs(
+            targetSpeed_[FRONT_LEFT],
+            targetSpeed_[FRONT_RIGHT],
+            targetSpeed_[REAR_LEFT],
+            targetSpeed_[REAR_RIGHT]
+        );
+    }
+
+    return true;
+}
+
+bool MotoronDrive::encoder_speed_control_enabled() const
+{
+    return encoderSpeedControlEnabled_;
+}
+
+bool MotoronDrive::encoder_speed_control_ready() const
+{
+    return encoderSpeedControlReady_;
+}
+
+bool MotoronDrive::update_encoder_speed_control()
+{
+    if (!encoderSpeedControlEnabled_ || !encoderSpeedControlReady_)
+    {
+        return false;
+    }
+
+    encoders_.poll();
+
+    const uint32_t now = millis();
+    if (now - lastSpeedControlMs_ < speedControlConfig_.intervalMs)
+    {
+        return false;
+    }
+
+    const float dt = (now - lastSpeedControlMs_) / 1000.0f;
+    lastSpeedControlMs_ = now;
+
+    encoders_.sample_rpm(
+        measuredRPM_[FRONT_LEFT],
+        measuredRPM_[FRONT_RIGHT],
+        measuredRPM_[REAR_LEFT],
+        measuredRPM_[REAR_RIGHT]
+    );
+
+    const int16_t frontLeft = computeControlledOutput(
+        FRONT_LEFT,
+        targetSpeed_[FRONT_LEFT],
+        measuredRPM_[FRONT_LEFT],
+        dt
+    );
+    const int16_t frontRight = computeControlledOutput(
+        FRONT_RIGHT,
+        targetSpeed_[FRONT_RIGHT],
+        measuredRPM_[FRONT_RIGHT],
+        dt
+    );
+    const int16_t rearLeft = computeControlledOutput(
+        REAR_LEFT,
+        targetSpeed_[REAR_LEFT],
+        measuredRPM_[REAR_LEFT],
+        dt
+    );
+    const int16_t rearRight = computeControlledOutput(
+        REAR_RIGHT,
+        targetSpeed_[REAR_RIGHT],
+        measuredRPM_[REAR_RIGHT],
+        dt
+    );
+
+    writeWheelOutputs(frontLeft, frontRight, rearLeft, rearRight);
+    return true;
+}
+
+void MotoronDrive::reset_encoder_speed_control()
+{
+    resetEncoderSpeedControlState();
+}
+
+void MotoronDrive::set_encoder_speed_control_config(
+    const MotoronSpeedControlConfig& config
+)
+{
+    speedControlConfig_ = config;
+    resetEncoderSpeedControlState();
+}
+
+MotoronSpeedControlConfig MotoronDrive::get_encoder_speed_control_config() const
+{
+    return speedControlConfig_;
+}
+
 void MotoronDrive::set_front_left(int16_t speed)
 {
-    frontLeft_ = clampSpeed(speed);
-    front_.setSpeed(
-        MOTORON_CHANNEL_FRONT_LEFT,
-        applyDirection(frontLeft_, MOTOR_FRONT_LEFT_DIRECTION)
-    );
+    targetSpeed_[FRONT_LEFT] = clampSpeed(speed);
+    writeTargetsWithCorrections();
 }
 
 void MotoronDrive::set_front_right(int16_t speed)
 {
-    frontRight_ = clampSpeed(speed);
-    front_.setSpeed(
-        MOTORON_CHANNEL_FRONT_RIGHT,
-        applyDirection(frontRight_, MOTOR_FRONT_RIGHT_DIRECTION)
-    );
+    targetSpeed_[FRONT_RIGHT] = clampSpeed(speed);
+    writeTargetsWithCorrections();
 }
 
 void MotoronDrive::set_rear_left(int16_t speed)
 {
-    rearLeft_ = clampSpeed(speed);
-    rear_.setSpeed(
-        MOTORON_CHANNEL_REAR_LEFT,
-        applyDirection(rearLeft_, MOTOR_REAR_LEFT_DIRECTION)
-    );
+    targetSpeed_[REAR_LEFT] = clampSpeed(speed);
+    writeTargetsWithCorrections();
 }
 
 void MotoronDrive::set_rear_right(int16_t speed)
 {
-    rearRight_ = clampSpeed(speed);
-    rear_.setSpeed(
-        MOTORON_CHANNEL_REAR_RIGHT,
-        applyDirection(rearRight_, MOTOR_REAR_RIGHT_DIRECTION)
-    );
+    targetSpeed_[REAR_RIGHT] = clampSpeed(speed);
+    writeTargetsWithCorrections();
 }
 
 void MotoronDrive::set_all(
@@ -117,27 +462,8 @@ void MotoronDrive::set_all(
     int16_t rearRight
 )
 {
-    frontLeft_ = clampSpeed(frontLeft);
-    frontRight_ = clampSpeed(frontRight);
-    rearLeft_ = clampSpeed(rearLeft);
-    rearRight_ = clampSpeed(rearRight);
-
-    front_.setSpeed(
-        MOTORON_CHANNEL_FRONT_LEFT,
-        applyDirection(frontLeft_, MOTOR_FRONT_LEFT_DIRECTION)
-    );
-    front_.setSpeed(
-        MOTORON_CHANNEL_FRONT_RIGHT,
-        applyDirection(frontRight_, MOTOR_FRONT_RIGHT_DIRECTION)
-    );
-    rear_.setSpeed(
-        MOTORON_CHANNEL_REAR_LEFT,
-        applyDirection(rearLeft_, MOTOR_REAR_LEFT_DIRECTION)
-    );
-    rear_.setSpeed(
-        MOTORON_CHANNEL_REAR_RIGHT,
-        applyDirection(rearRight_, MOTOR_REAR_RIGHT_DIRECTION)
-    );
+    setTargetSpeeds(frontLeft, frontRight, rearLeft, rearRight);
+    writeTargetsWithCorrections();
 }
 
 void MotoronDrive::get_wheel_speeds(
@@ -147,10 +473,59 @@ void MotoronDrive::get_wheel_speeds(
     int16_t& rearRight
 ) const
 {
-    frontLeft = frontLeft_;
-    frontRight = frontRight_;
-    rearLeft = rearLeft_;
-    rearRight = rearRight_;
+    frontLeft = targetSpeed_[FRONT_LEFT];
+    frontRight = targetSpeed_[FRONT_RIGHT];
+    rearLeft = targetSpeed_[REAR_LEFT];
+    rearRight = targetSpeed_[REAR_RIGHT];
+}
+
+void MotoronDrive::get_applied_wheel_speeds(
+    int16_t& frontLeft,
+    int16_t& frontRight,
+    int16_t& rearLeft,
+    int16_t& rearRight
+) const
+{
+    frontLeft = outputSpeed_[FRONT_LEFT];
+    frontRight = outputSpeed_[FRONT_RIGHT];
+    rearLeft = outputSpeed_[REAR_LEFT];
+    rearRight = outputSpeed_[REAR_RIGHT];
+}
+
+void MotoronDrive::get_encoder_counts(
+    int32_t& frontLeft,
+    int32_t& frontRight,
+    int32_t& rearLeft,
+    int32_t& rearRight
+) const
+{
+    encoders_.get_counts(frontLeft, frontRight, rearLeft, rearRight);
+}
+
+void MotoronDrive::get_encoder_rpm(
+    float& frontLeft,
+    float& frontRight,
+    float& rearLeft,
+    float& rearRight
+) const
+{
+    frontLeft = measuredRPM_[FRONT_LEFT];
+    frontRight = measuredRPM_[FRONT_RIGHT];
+    rearLeft = measuredRPM_[REAR_LEFT];
+    rearRight = measuredRPM_[REAR_RIGHT];
+}
+
+void MotoronDrive::get_target_rpm(
+    float& frontLeft,
+    float& frontRight,
+    float& rearLeft,
+    float& rearRight
+) const
+{
+    frontLeft = targetRPM_[FRONT_LEFT];
+    frontRight = targetRPM_[FRONT_RIGHT];
+    rearLeft = targetRPM_[REAR_LEFT];
+    rearRight = targetRPM_[REAR_RIGHT];
 }
 
 void MotoronDrive::drive(int16_t vx, int16_t vy, int16_t w)
@@ -230,15 +605,9 @@ void MotoronDrive::stop()
 
 void MotoronDrive::stop_all()
 {
-    frontLeft_ = 0;
-    frontRight_ = 0;
-    rearLeft_ = 0;
-    rearRight_ = 0;
-
-    front_.setSpeedNow(MOTORON_CHANNEL_FRONT_LEFT, 0);
-    front_.setSpeedNow(MOTORON_CHANNEL_FRONT_RIGHT, 0);
-    rear_.setSpeedNow(MOTORON_CHANNEL_REAR_LEFT, 0);
-    rear_.setSpeedNow(MOTORON_CHANNEL_REAR_RIGHT, 0);
+    setTargetSpeeds(0, 0, 0, 0);
+    resetEncoderSpeedControlState();
+    writeWheelOutputs(0, 0, 0, 0, true);
 }
 
 void MotoronDrive::setFrontRaw(int16_t motor1, int16_t motor2, bool immediate)
@@ -281,15 +650,25 @@ void MotoronDrive::raw_front(
     bool immediate
 )
 {
-    frontLeft_ = clampSpeed(motor1);
-    frontRight_ = clampSpeed(motor2);
+    encoderSpeedControlEnabled_ = false;
+    resetEncoderSpeedControlState();
+
+    targetSpeed_[FRONT_LEFT] = clampSpeed(motor1);
+    targetSpeed_[FRONT_RIGHT] = clampSpeed(motor2);
+    outputSpeed_[FRONT_LEFT] = targetSpeed_[FRONT_LEFT];
+    outputSpeed_[FRONT_RIGHT] = targetSpeed_[FRONT_RIGHT];
     setFrontRaw(motor1, motor2, immediate);
 }
 
 void MotoronDrive::raw_rear(int16_t motor1, int16_t motor2, bool immediate)
 {
-    rearLeft_ = clampSpeed(motor1);
-    rearRight_ = clampSpeed(motor2);
+    encoderSpeedControlEnabled_ = false;
+    resetEncoderSpeedControlState();
+
+    targetSpeed_[REAR_LEFT] = clampSpeed(motor1);
+    targetSpeed_[REAR_RIGHT] = clampSpeed(motor2);
+    outputSpeed_[REAR_LEFT] = targetSpeed_[REAR_LEFT];
+    outputSpeed_[REAR_RIGHT] = targetSpeed_[REAR_RIGHT];
     setRearRaw(motor1, motor2, immediate);
 }
 
@@ -299,15 +678,20 @@ void MotoronDrive::raw_front_motor(
     bool immediate
 )
 {
+    encoderSpeedControlEnabled_ = false;
+    resetEncoderSpeedControlState();
+
     speed = clampSpeed(speed);
 
     if (channel == 1)
     {
-        frontLeft_ = speed;
+        targetSpeed_[FRONT_LEFT] = speed;
+        outputSpeed_[FRONT_LEFT] = speed;
     }
     else if (channel == 2)
     {
-        frontRight_ = speed;
+        targetSpeed_[FRONT_RIGHT] = speed;
+        outputSpeed_[FRONT_RIGHT] = speed;
     }
 
     if (immediate)
@@ -326,15 +710,20 @@ void MotoronDrive::raw_rear_motor(
     bool immediate
 )
 {
+    encoderSpeedControlEnabled_ = false;
+    resetEncoderSpeedControlState();
+
     speed = clampSpeed(speed);
 
     if (channel == 1)
     {
-        rearLeft_ = speed;
+        targetSpeed_[REAR_LEFT] = speed;
+        outputSpeed_[REAR_LEFT] = speed;
     }
     else if (channel == 2)
     {
-        rearRight_ = speed;
+        targetSpeed_[REAR_RIGHT] = speed;
+        outputSpeed_[REAR_RIGHT] = speed;
     }
 
     if (immediate)

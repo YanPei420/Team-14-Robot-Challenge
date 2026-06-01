@@ -57,8 +57,8 @@ void LED::allOff()
 void LED::showNormal()
 {
     setBoth(
-        HIGH,
-        LOW
+        LOW,
+        HIGH
     );
 
     lastFlashTime = millis();
@@ -67,7 +67,7 @@ void LED::showNormal()
 void LED::showButtonPressed()
 {
     setBoth(
-        LOW,
+        HIGH,
         HIGH
     );
 

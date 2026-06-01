@@ -19,6 +19,7 @@ private:
     int8_t direction_;
     uint16_t countsPerRevolution_;
     uint8_t slot_;
+    bool useInterrupts_;
     volatile int32_t count_;
     volatile uint8_t lastState_;
     int32_t lastSampleCount_;
@@ -46,8 +47,10 @@ public:
 
     bool begin(
         uint8_t interruptSlot,
-        bool usePullups = MOTOR_ENCODER_USE_INTERNAL_PULLUPS
+        bool usePullups = MOTOR_ENCODER_USE_INTERNAL_PULLUPS,
+        bool useInterrupts = MOTOR_ENCODER_USE_INTERRUPTS
     );
+    void poll();
 
     int32_t read_count() const;
     int32_t read_and_reset();
@@ -98,6 +101,7 @@ public:
     );
 
     bool begin();
+    void poll();
     void reset_counts();
 
     void get_counts(

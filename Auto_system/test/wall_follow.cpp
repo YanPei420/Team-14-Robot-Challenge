@@ -1,189 +1,270 @@
 #include <Arduino.h>
+
 #include "LidarSensor.h"
-#include "MotoronDrive.h"
 #include "MotorConfig.h"
-#include "LidarConfig.h"
+#include "MotoronDrive.h"
 
-namespace {
+namespace
+{
+constexpr uint32_t SERIAL_BAUD = 115200;
+constexpr uint32_t CONTROL_INTERVAL_MS = 40;
+constexpr uint32_t DEBUG_INTERVAL_MS = 250;
+constexpr uint32_t LIDAR_FRESH_MS = 300;
 
-// ── sensor instances ──────────────────────────────────────────────────
-LidarSensor  lidarLeft (LIDAR_SERIAL_LEFT);
-LidarSensor  lidarFront(LIDAR_SERIAL_FRONT);
+constexpr int16_t FORWARD_SPEED = 240;
+constexpr int16_t SEARCH_TURN_SPEED = 170;
+constexpr int16_t AVOID_TURN_SPEED = 260;
+constexpr int16_t MAX_CORRECTION_SPEED = 260;
+
+constexpr float TARGET_LEFT_DISTANCE_CM = 10.0f;
+constexpr float WALL_DEADBAND_CM = 1.5f;
+constexpr float WALL_VISIBLE_MAX_CM = 55.0f;
+constexpr float FRONT_OBSTACLE_CM = 22.0f;
+constexpr float WALL_TURN_KP = 45.0f;
+
+LidarSensor lidarLeft(LIDAR_SERIAL_1);
+LidarSensor lidarRight(LIDAR_SERIAL_2);
+LidarSensor lidarFront(LIDAR_SERIAL_3);
 MotoronDrive robot(MOTORON_ADDR_FRONT, MOTORON_ADDR_REAR);
 
-// ── state for derivative term + debug ────────────────────────────────
-float    lastLeftDist   = WALL_TARGET_CM;
-uint32_t lastControlMs  = 0;
-int16_t  dbgStrafeCmd   = 0;
-int16_t  dbgRotCmd      = 0;
-float    dbgError       = 0.0f;
-bool     dbgFrontBlock  = false;
-
-// ── helpers ──────────────────────────────────────────────────────────
-bool isFresh(LidarSensor& s)
+enum class WallState : uint8_t
 {
-    return s.isValid()
-        && (millis() - s.getLastUpdateMs()) < LIDAR_TIMEOUT_MS;
+    Disarmed,
+    MotorError,
+    AvoidFront,
+    SearchWall,
+    FollowWall
+};
+
+WallState state = WallState::Disarmed;
+bool armed = false;
+bool motorReady = false;
+uint32_t lastControlMs = 0;
+uint32_t lastDebugMs = 0;
+
+const char* stateName(WallState value)
+{
+    switch (value)
+    {
+    case WallState::Disarmed: return "DISARMED";
+    case WallState::MotorError: return "MOTOR_ERROR";
+    case WallState::AvoidFront: return "AVOID_FRONT";
+    case WallState::SearchWall: return "SEARCH_WALL";
+    case WallState::FollowWall: return "FOLLOW_WALL";
+    default: return "UNKNOWN";
+    }
 }
 
-// Returns true if a usable left-wall reading exists and the wall
-// hasn't disappeared (outside corner detection).
-bool leftWallVisible(float& distOut)
+bool lidarFresh(LidarSensor& lidar)
 {
-    if (!isFresh(lidarLeft)) return false;
-    float d = (float)lidarLeft.getDistanceCM();
-    if (d <= 0.0f || d > WALL_LOST_CM) return false;
-    distOut = d;
-    return true;
+    return lidar.isValid() && millis() - lidar.getLastUpdateMs() <= LIDAR_FRESH_MS;
 }
 
 bool frontObstacleClose()
 {
-    if (!isFresh(lidarFront)) return false;
-    float d = (float)lidarFront.getDistanceCM();
-    return (d > 0.0f && d < FRONT_OBSTACLE_CM);
+    return lidarFresh(lidarLeft)
+        && lidarLeft.getDistanceCM() > 0
+        && lidarLeft.getDistanceCM() <= WALL_VISIBLE_MAX_CM;
 }
 
-// Clamp an int to a symmetric range [-limit, +limit].
-int16_t clampSym(float value, int16_t limit)
+bool frontBlocked()
 {
-    if (value >  limit) return  limit;
-    if (value < -limit) return -limit;
-    return (int16_t)value;
+    return lidarFresh(lidarFront)
+        && lidarFront.getDistanceCM() > 0
+        && lidarFront.getDistanceCM() <= FRONT_OBSTACLE_CM;
 }
 
-// ── behaviours ───────────────────────────────────────────────────────
-
-// Inside-corner handling: stop, then pivot right in place until the
-// front is clear. Assumes left-hand wall following → corners turn right.
-void handleInsideCorner()
+int16_t clampCorrection(float value)
 {
-    robot.drive(0, 0, 0);
-    delay(50);  // let inertia settle
-    while (frontObstacleClose()) {
-        lidarFront.update();
-        lidarLeft.update();
-        robot.drive(0, 0, CORNER_TURN_SPEED);  // verify sign on your robot
+    if (value > MAX_CORRECTION_SPEED)
+    {
+        return MAX_CORRECTION_SPEED;
     }
-    robot.drive(0, 0, 0);
+
+    if (value < -MAX_CORRECTION_SPEED)
+    {
+        return -MAX_CORRECTION_SPEED;
+    }
+
+    return static_cast<int16_t>(value);
 }
 
-// Outside-corner handling: wall has vanished on the left.
-// Curve left (strafe + small forward) to find it again.
-void handleOutsideCorner()
+void stopRobot()
 {
-    robot.drive(FORWARD_SPEED / 2, -MAX_STRAFE_SPEED / 2, 0);
+    robot.stop_all();
 }
 
-// Main P-controlled wall follow using strafe + small yaw.
-void wallFollow()
+void printHelp()
 {
-    // 1. Inside corner has highest priority.
-    dbgFrontBlock = frontObstacleClose();
-    if (dbgFrontBlock) {
-        handleInsideCorner();
-        lastLeftDist  = WALL_TARGET_CM;
-        lastControlMs = millis();
-        dbgStrafeCmd  = 0;
-        dbgRotCmd     = 0;
-        dbgError      = 0.0f;
+    Serial.println("Wall-follow test commands:");
+    Serial.println("  G - arm and start following the left wall");
+    Serial.println("  X - stop and disarm");
+    Serial.println("Keep the robot lifted or restrained for the first run.");
+}
+
+void pollSerial()
+{
+    while (Serial.available() > 0)
+    {
+        const char command = static_cast<char>(Serial.read());
+
+        if (command == 'g' || command == 'G')
+        {
+            armed = true;
+            Serial.println("Wall-follow armed.");
+        }
+        else if (command == 'x' || command == 'X')
+        {
+            armed = false;
+            stopRobot();
+            Serial.println("Wall-follow stopped.");
+        }
+        else if (command == '?' || command == 'h' || command == 'H')
+        {
+            printHelp();
+        }
+    }
+}
+
+void updateLidars()
+{
+    lidarLeft.update();
+    lidarRight.update();
+    lidarFront.update();
+}
+
+void updateWallFollow()
+{
+    const uint32_t now = millis();
+
+    if (now - lastControlMs < CONTROL_INTERVAL_MS)
+    {
         return;
     }
-
-    // 2. Check left wall.
-    float dist;
-    if (!leftWallVisible(dist)) {
-        handleOutsideCorner();
-        dbgStrafeCmd = 0;
-        dbgRotCmd    = 0;
-        dbgError     = 0.0f;
-        return;
-    }
-
-    // 3. P-control on lateral error.
-    //    error > 0  →  too far from wall  →  strafe LEFT (toward wall)
-    //    error < 0  →  too close to wall  →  strafe RIGHT (away)
-    float error = dist - WALL_TARGET_CM;
-    dbgError = error;
-
-    int16_t strafeCmd = 0;
-    if (fabs(error) > WALL_DEADBAND_CM) {
-        strafeCmd = clampSym(-KP_STRAFE * error, MAX_STRAFE_SPEED);
-    }
-
-    // 4. Small yaw correction from rate of change.
-    uint32_t now = millis();
-    float dt = (now - lastControlMs) / 1000.0f;
-    int16_t rotCmd = 0;
-    if (dt > 0.005f && lastControlMs != 0) {
-        float deriv = (dist - lastLeftDist) / dt;
-        rotCmd = clampSym(-KP_ROTATION * deriv, MAX_ROTATION_SPEED);
-    }
-    lastLeftDist  = dist;
     lastControlMs = now;
-    dbgStrafeCmd  = strafeCmd;
-    dbgRotCmd     = rotCmd;
 
-    // 5. Drive (forward, strafe, rotation).
-    robot.drive(FORWARD_SPEED, strafeCmd, rotCmd);
+    if (!motorReady)
+    {
+        state = WallState::MotorError;
+        stopRobot();
+        return;
+    }
+
+    if (!armed)
+    {
+        state = WallState::Disarmed;
+        stopRobot();
+        return;
+    }
+
+    if (frontBlocked())
+    {
+        state = WallState::AvoidFront;
+        robot.rotate_right(AVOID_TURN_SPEED);
+        return;
+    }
+
+    if (!leftWallVisible())
+    {
+        state = WallState::SearchWall;
+        robot.rotate_left(SEARCH_TURN_SPEED);
+        return;
+    }
+
+    state = WallState::FollowWall;
+
+    const float distance = static_cast<float>(lidarLeft.getDistanceCM());
+    const float error = TARGET_LEFT_DISTANCE_CM - distance;
+    int16_t turn = 0;
+
+    if (abs(error) > WALL_DEADBAND_CM)
+    {
+        turn = clampCorrection(error * WALL_TURN_KP);
+    }
+
+    robot.drive(FORWARD_SPEED, 0, turn);
+}
+
+void printReading(const char* label, LidarSensor& lidar)
+{
+    Serial.print(label);
+    Serial.print('=');
+
+    if (!lidarFresh(lidar))
+    {
+        Serial.print("stale");
+        return;
+    }
+
+    Serial.print(lidar.getDistanceCM());
+    Serial.print("cm");
 }
 
 void printDebug()
 {
-    // ── distances ────────────────────────────────────────────────────
-    Serial.print("L=");
-    if (isFresh(lidarLeft)) { Serial.print(lidarLeft.getDistanceCM()); Serial.print("cm"); }
-    else                    { Serial.print("STALE"); }
+    const uint32_t now = millis();
 
-    Serial.print("  F=");
-    if (isFresh(lidarFront)) { Serial.print(lidarFront.getDistanceCM()); Serial.print("cm"); }
-    else                     { Serial.print("STALE"); }
+    if (now - lastDebugMs < DEBUG_INTERVAL_MS)
+    {
+        return;
+    }
+    lastDebugMs = now;
 
-    // ── control state ────────────────────────────────────────────────
-    Serial.print(dbgFrontBlock ? "  [CORNER]" : "  [FOLLOW]");
-    Serial.print("  err="); Serial.print(dbgError, 1);
-    Serial.print("cm  str="); Serial.print(dbgStrafeCmd);
-    Serial.print("  rot=");  Serial.print(dbgRotCmd);
+    int16_t frontLeft = 0;
+    int16_t frontRight = 0;
+    int16_t rearLeft = 0;
+    int16_t rearRight = 0;
+    robot.get_wheel_speeds(frontLeft, frontRight, rearLeft, rearRight);
 
-    // ── frame health ─────────────────────────────────────────────────
-    Serial.print("  | Lfrm="); Serial.print(lidarLeft.getValidFrameCount());
-    Serial.print(" Lchk=");    Serial.print(lidarLeft.getChecksumErrorCount());
-    Serial.print(" Ldrp=");    Serial.print(lidarLeft.getDroppedByteCount());
-    Serial.print("  Ffrm=");   Serial.print(lidarFront.getValidFrameCount());
-    Serial.print(" Fchk=");    Serial.print(lidarFront.getChecksumErrorCount());
-    Serial.println();
+    Serial.print("state=");
+    Serial.print(stateName(state));
+    Serial.print(" armed=");
+    Serial.print(armed ? 1 : 0);
+    Serial.print(" ");
+    printReading("L", lidarLeft);
+    Serial.print(" ");
+    printReading("R", lidarRight);
+    Serial.print(" ");
+    printReading("F", lidarFront);
+    Serial.print(" wheels=");
+    Serial.print(frontLeft);
+    Serial.print(',');
+    Serial.print(frontRight);
+    Serial.print(',');
+    Serial.print(rearLeft);
+    Serial.print(',');
+    Serial.println(rearRight);
 }
-
 } // namespace
 
 void setup()
 {
-    Serial.begin(115200);
-    uint32_t t = millis();
-    while (!Serial && millis() - t < 3000) { ; }
-    Serial.println("Wall follow (mecanum, P-control) started.");
+    Serial.begin(SERIAL_BAUD);
+    const uint32_t serialStartMs = millis();
+
+    while (!Serial && millis() - serialStartMs < 3000)
+    {
+        ;
+    }
 
     lidarLeft.begin();
     lidarFront.begin();
 
-    robot.begin();
+    motorReady = robot.begin();
     robot.set_max_speed(MOTOR_MAX_SPEED);
     robot.clear_status_flags();
-    robot.stop();
+    stopRobot();
 
-    lastControlMs = millis();
+    Serial.println("Wall-follow test ready.");
+    Serial.print("Motoron init: ");
+    Serial.println(motorReady ? "OK" : "FAILED");
+    printHelp();
 }
 
 void loop()
 {
-    lidarLeft.update();
-    lidarFront.update();
-
-    wallFollow();
-
-    static uint32_t lastDebug = 0;
-    if (millis() - lastDebug >= DEBUG_INTERVAL_MS) {
-        lastDebug = millis();
-        printDebug();
-    }
+    pollSerial();
+    updateLidars();
+    updateWallFollow();
+    printDebug();
 }
