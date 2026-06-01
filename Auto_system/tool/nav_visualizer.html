@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Robot Navigation Visualizer</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7f9;
+      --panel: #ffffff;
+      --text: #19212a;
+      --muted: #607080;
+      --line: #cfd8e3;
+      --route: #2d7ff9;
+      --entry: #1b9aaa;
+      --exit: #d85140;
+      --fertile: #5ca66a;
+      --planted: #8066d9;
+      --blocked: #2f343a;
+      --robot: #f6b73c;
+      --unknown: #eef2f6;
+      --no-line: #d9e1e8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    header {
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      padding: 14px 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(330px, 620px) minmax(320px, 1fr);
+      gap: 16px;
+      padding: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .toolbar,
+    .metrics,
+    .legend,
+    .target-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    button,
+    select,
+    input {
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      padding: 0 10px;
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      font-weight: 650;
+    }
+
+    button.primary {
+      border-color: #2467c7;
+      background: #2467c7;
+      color: #fff;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      text-transform: uppercase;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 160px;
+      margin-top: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      resize: vertical;
+      font: 12px/1.45 Consolas, "SFMono-Regular", monospace;
+    }
+
+    .grid-wrap {
+      display: grid;
+      gap: 12px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(9, 1fr);
+      gap: 5px;
+      width: min(100%, 620px);
+      aspect-ratio: 1;
+    }
+
+    .cell {
+      position: relative;
+      display: grid;
+      place-items: center;
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--unknown);
+      overflow: hidden;
+      font-size: 11px;
+      font-weight: 700;
+      color: #23303d;
+    }
+
+    .cell.known {
+      background: #fff;
+    }
+
+    .cell.no-line {
+      background:
+        repeating-linear-gradient(
+          -45deg,
+          color-mix(in srgb, var(--no-line) 58%, white),
+          color-mix(in srgb, var(--no-line) 58%, white) 8px,
+          color-mix(in srgb, var(--no-line) 28%, white) 8px,
+          color-mix(in srgb, var(--no-line) 28%, white) 16px
+        );
+      border-style: dashed;
+    }
+
+    .cell.no-line.known {
+      background:
+        repeating-linear-gradient(
+          -45deg,
+          color-mix(in srgb, var(--no-line) 46%, white),
+          color-mix(in srgb, var(--no-line) 46%, white) 8px,
+          white 8px,
+          white 16px
+        );
+    }
+
+    .cell.fertile {
+      background: color-mix(in srgb, var(--fertile) 22%, white);
+      border-color: color-mix(in srgb, var(--fertile) 50%, var(--line));
+    }
+
+    .cell.planted {
+      background: color-mix(in srgb, var(--planted) 22%, white);
+      border-color: color-mix(in srgb, var(--planted) 50%, var(--line));
+    }
+
+    .cell.blocked {
+      background: var(--blocked);
+      color: #fff;
+      border-color: var(--blocked);
+    }
+
+    .cell.route {
+      outline: 3px solid color-mix(in srgb, var(--route) 82%, transparent);
+      outline-offset: -4px;
+    }
+
+    .cell.current::after {
+      content: "";
+      position: absolute;
+      width: 44%;
+      height: 44%;
+      border-radius: 50%;
+      background: var(--robot);
+      border: 2px solid #8d5a00;
+      box-shadow: 0 1px 5px rgb(0 0 0 / 24%);
+    }
+
+    .cell.entry::before,
+    .cell.exit::before {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      z-index: 1;
+      border-radius: 4px;
+      padding: 1px 4px;
+      color: #fff;
+      font-size: 10px;
+      letter-spacing: 0;
+    }
+
+    .cell.entry::before {
+      content: "IN";
+      background: var(--entry);
+    }
+
+    .cell.exit::before {
+      content: "OUT";
+      background: var(--exit);
+    }
+
+    .coord {
+      position: absolute;
+      right: 4px;
+      bottom: 3px;
+      color: #536475;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .tag {
+      z-index: 2;
+      max-width: 80%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .metric {
+      min-width: 108px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: #fbfcfe;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 2px;
+      font-size: 16px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      background: var(--line);
+    }
+
+    .log {
+      height: 220px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #101820;
+      color: #d8e7f4;
+      padding: 10px;
+      font: 12px/1.45 Consolas, "SFMono-Regular", monospace;
+      white-space: pre-wrap;
+    }
+
+    .route-list {
+      min-height: 36px;
+      margin-top: 10px;
+      color: var(--muted);
+      font-weight: 650;
+    }
+
+    @media (max-width: 920px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Robot Navigation Visualizer</h1>
+  </header>
+
+  <main>
+    <section class="panel grid-wrap">
+      <div class="toolbar">
+        <button id="connectBtn" class="primary">Connect Serial</button>
+        <button id="disconnectBtn" disabled>Disconnect</button>
+        <button id="sampleBtn">Load Sample</button>
+        <button id="clearBtn">Clear</button>
+      </div>
+
+      <div class="grid" id="grid"></div>
+
+      <div class="legend">
+        <span class="pill"><span class="swatch" style="background: var(--entry)"></span>Entry (3,1)</span>
+        <span class="pill"><span class="swatch" style="background: var(--exit)"></span>Exit (7,1)</span>
+        <span class="pill"><span class="swatch" style="background: var(--route)"></span>Route</span>
+        <span class="pill"><span class="swatch" style="background: var(--fertile)"></span>Fertile</span>
+        <span class="pill"><span class="swatch" style="background: var(--planted)"></span>Planted</span>
+        <span class="pill"><span class="swatch" style="background: var(--blocked)"></span>Blocked</span>
+        <span class="pill"><span class="swatch" style="background: var(--robot)"></span>Robot</span>
+        <span class="pill"><span class="swatch" style="background: var(--no-line)"></span>No line rows 5-9</span>
+      </div>
+
+      <div class="target-row">
+        <label for="targetMode">Route</label>
+        <select id="targetMode">
+          <option value="nearest">Nearest plantable</option>
+          <option value="entry">To entry</option>
+          <option value="exit">To exit</option>
+        </select>
+        <button id="recalcBtn">Recalculate</button>
+      </div>
+
+      <div class="route-list" id="routeList">No route yet.</div>
+    </section>
+
+    <section class="panel">
+      <div class="metrics">
+        <div class="metric"><label>State</label><strong id="stateMetric">Unknown</strong></div>
+        <div class="metric"><label>Seeds</label><strong id="seedsMetric">0</strong></div>
+        <div class="metric"><label>Safety</label><strong id="safetyMetric">Unknown</strong></div>
+        <div class="metric"><label>Lidar Front</label><strong id="lidarMetric">--</strong></div>
+        <div class="metric"><label>Heartbeat</label><strong id="heartbeatMetric">--</strong></div>
+        <div class="metric"><label>Position</label><strong id="positionMetric">--</strong></div>
+      </div>
+
+      <textarea id="pasteBox" spellcheck="false" placeholder="Paste serial output here, then press Parse Log."></textarea>
+      <div class="toolbar" style="margin-top: 8px">
+        <button id="parseBtn">Parse Log</button>
+        <button id="markCurrentPlantedBtn">Mark Current Planted</button>
+      </div>
+
+      <h2 style="font-size: 15px; margin: 16px 0 8px">Live Log</h2>
+      <div class="log" id="log"></div>
+    </section>
+  </main>
+
+  <script>
+    const WIDTH = 9;
+    const HEIGHT = 9;
+    const LINE_ROW_LIMIT = 4;
+    const ENTRY = { x: 3, y: 1 };
+    const EXIT = { x: 7, y: 1 };
+
+    const cells = new Map();
+    let route = [];
+    let current = null;
+    let serialPort = null;
+    let serialReader = null;
+    let keepReading = false;
+    let pendingText = "";
+
+    const el = {
+      grid: document.getElementById("grid"),
+      routeList: document.getElementById("routeList"),
+      log: document.getElementById("log"),
+      connectBtn: document.getElementById("connectBtn"),
+      disconnectBtn: document.getElementById("disconnectBtn"),
+      sampleBtn: document.getElementById("sampleBtn"),
+      clearBtn: document.getElementById("clearBtn"),
+      parseBtn: document.getElementById("parseBtn"),
+      pasteBox: document.getElementById("pasteBox"),
+      recalcBtn: document.getElementById("recalcBtn"),
+      targetMode: document.getElementById("targetMode"),
+      markCurrentPlantedBtn: document.getElementById("markCurrentPlantedBtn"),
+      stateMetric: document.getElementById("stateMetric"),
+      seedsMetric: document.getElementById("seedsMetric"),
+      safetyMetric: document.getElementById("safetyMetric"),
+      lidarMetric: document.getElementById("lidarMetric"),
+      heartbeatMetric: document.getElementById("heartbeatMetric"),
+      positionMetric: document.getElementById("positionMetric")
+    };
+
+    function key(x, y) {
+      return `${x},${y}`;
+    }
+
+    function getCell(x, y) {
+      const id = key(x, y);
+      if (!cells.has(id)) {
+        cells.set(id, {
+          x,
+          y,
+          known: false,
+          fertile: false,
+          planted: false,
+          blocked: false,
+          tagId: ""
+        });
+      }
+      return cells.get(id);
+    }
+
+    function clearData() {
+      cells.clear();
+      route = [];
+      current = null;
+      pendingText = "";
+      for (let y = 1; y <= HEIGHT; y += 1) {
+        for (let x = 1; x <= WIDTH; x += 1) {
+          getCell(x, y);
+        }
+      }
+      getCell(ENTRY.x, ENTRY.y).known = true;
+      getCell(EXIT.x, EXIT.y).known = true;
+      el.log.textContent = "";
+      updateMetrics({});
+      render();
+    }
+
+    function appendLog(text) {
+      el.log.textContent += `${text}\n`;
+      el.log.scrollTop = el.log.scrollHeight;
+    }
+
+    function parseTokens(line) {
+      const tokens = {};
+      for (const part of line.trim().split(/\s+/)) {
+        const index = part.indexOf("=");
+        if (index > 0) {
+          tokens[part.slice(0, index)] = part.slice(index + 1);
+        }
+      }
+      return tokens;
+    }
+
+    function boolValue(value) {
+      return value === "1" || value === "true";
+    }
+
+    function hasLine(point) {
+      return point && point.y >= 1 && point.y <= LINE_ROW_LIMIT;
+    }
+
+    function updateMetrics(data) {
+      if (data.state !== undefined) el.stateMetric.textContent = data.state;
+      if (data.seeds !== undefined) el.seedsMetric.textContent = data.seeds;
+      if (data.safety !== undefined) el.safetyMetric.textContent = data.safety;
+      if (data.lidar !== undefined) el.lidarMetric.textContent = data.lidar;
+      if (data.heartbeat !== undefined) el.heartbeatMetric.textContent = data.heartbeat;
+      el.positionMetric.textContent = current ? `(${current.x},${current.y})` : "--";
+    }
+
+    function updateCellFromTokens(tokens) {
+      if (tokens.x === undefined || tokens.y === undefined) return false;
+      const x = Number(tokens.x);
+      const y = Number(tokens.y);
+      if (!Number.isInteger(x) || !Number.isInteger(y) || x < 1 || y < 1 || x > WIDTH || y > HEIGHT) {
+        return false;
+      }
+
+      const cell = getCell(x, y);
+      cell.known = true;
+      if (tokens.fertile !== undefined) cell.fertile = boolValue(tokens.fertile);
+      if (tokens.planted !== undefined) cell.planted = boolValue(tokens.planted);
+      if (tokens.blocked !== undefined) cell.blocked = boolValue(tokens.blocked);
+      if (tokens.obstacle !== undefined) cell.blocked = boolValue(tokens.obstacle);
+      if (tokens.tag_id !== undefined) cell.tagId = tokens.tag_id;
+      current = { x, y };
+      return true;
+    }
+
+    function parseRouteCells(text) {
+      const parsed = [];
+      const regex = /\((-?\d+),\s*(-?\d+)\)/g;
+      let match = regex.exec(text);
+      while (match) {
+        parsed.push({ x: Number(match[1]), y: Number(match[2]) });
+        match = regex.exec(text);
+      }
+      return parsed;
+    }
+
+    function neighbors(point) {
+      return [
+        { x: point.x + 1, y: point.y },
+        { x: point.x - 1, y: point.y },
+        { x: point.x, y: point.y + 1 },
+        { x: point.x, y: point.y - 1 }
+      ].filter((p) => p.x >= 1 && p.x <= WIDTH && p.y >= 1 && p.y <= HEIGHT && hasLine(p));
+    }
+
+    function bfs(start, target) {
+      if (!start || !target) return [];
+      if (!hasLine(start) || !hasLine(target)) return [];
+      if (getCell(start.x, start.y).blocked || getCell(target.x, target.y).blocked) return [];
+
+      const queue = [start];
+      const visited = new Set([key(start.x, start.y)]);
+      const previous = new Map();
+
+      while (queue.length > 0) {
+        const point = queue.shift();
+        if (point.x === target.x && point.y === target.y) break;
+
+        for (const next of neighbors(point)) {
+          const nextKey = key(next.x, next.y);
+          if (visited.has(nextKey) || getCell(next.x, next.y).blocked) continue;
+          visited.add(nextKey);
+          previous.set(nextKey, point);
+          queue.push(next);
+        }
+      }
+
+      const targetKey = key(target.x, target.y);
+      if (!visited.has(targetKey)) return [];
+
+      const path = [];
+      let cursor = target;
+      while (cursor) {
+        path.push(cursor);
+        if (cursor.x === start.x && cursor.y === start.y) break;
+        cursor = previous.get(key(cursor.x, cursor.y));
+      }
+      return path.reverse();
+    }
+
+    function nearestPlantable() {
+      if (!current) return null;
+      let best = null;
+      let bestDistance = Infinity;
+      for (const cell of cells.values()) {
+        if (!cell.known || !cell.fertile || cell.planted || cell.blocked) continue;
+        if (!hasLine(cell)) continue;
+        const distance = Math.abs(cell.x - current.x) + Math.abs(cell.y - current.y);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = { x: cell.x, y: cell.y };
+        }
+      }
+      return best;
+    }
+
+    function recalculateRoute() {
+      let target = null;
+      if (el.targetMode.value === "entry") target = ENTRY;
+      if (el.targetMode.value === "exit") target = EXIT;
+      if (el.targetMode.value === "nearest") target = nearestPlantable();
+      route = bfs(current, target);
+      render();
+    }
+
+    function parseLine(line) {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      appendLog(trimmed);
+
+      const navCell = trimmed.match(/\[nav\]\s+grid cell\s+(-?\d+),(-?\d+)\s+fertile=(true|false)\s+planted=(true|false)\s+blocked=(true|false)/);
+      if (navCell) {
+        updateCellFromTokens({
+          x: navCell[1],
+          y: navCell[2],
+          fertile: navCell[3],
+          planted: navCell[4],
+          blocked: navCell[5]
+        });
+        recalculateRoute();
+        return;
+      }
+
+      const navRoute = trimmed.match(/\[nav\]\s+route\s+\d+\s+cells:(.*)$/);
+      if (navRoute) {
+        route = parseRouteCells(navRoute[1]);
+        render();
+        return;
+      }
+
+      const status = trimmed.match(/\[status\]\s+(\S+)\s+seeds=(\d+)\s+motor=(\S+)\s+encoder=(\S+)\s+kill=(\S+)\s+heartbeat=(\S+)\s+lidarF=(\S+)/);
+      if (status) {
+        updateMetrics({
+          state: status[1],
+          seeds: status[2],
+          safety: status[3] === "ok" && status[4] === "ok" && status[5] === "safe" && status[6] === "ok" ? "allowed" : "blocked",
+          heartbeat: status[6],
+          lidar: status[7]
+        });
+        return;
+      }
+
+      if (trimmed.includes("type=isFertileReply") || trimmed.includes("type=rfid")) {
+        const tokens = parseTokens(trimmed);
+        if (updateCellFromTokens(tokens)) {
+          recalculateRoute();
+          return;
+        }
+      }
+
+      if (trimmed.includes("type=status")) {
+        const tokens = parseTokens(trimmed);
+        updateMetrics({
+          state: tokens.state,
+          seeds: tokens.seeds,
+          safety: tokens.safety === "1" ? "allowed" : "blocked"
+        });
+      }
+    }
+
+    function render() {
+      const routeSet = new Set(route.map((p) => key(p.x, p.y)));
+      el.grid.innerHTML = "";
+
+      for (let y = 1; y <= HEIGHT; y += 1) {
+        for (let x = 1; x <= WIDTH; x += 1) {
+          const cell = getCell(x, y);
+          const node = document.createElement("button");
+          node.type = "button";
+          node.className = "cell";
+          if (cell.known) node.classList.add("known");
+          if (!hasLine(cell)) node.classList.add("no-line");
+          if (cell.fertile) node.classList.add("fertile");
+          if (cell.planted) node.classList.add("planted");
+          if (cell.blocked) node.classList.add("blocked");
+          if (routeSet.has(key(x, y))) node.classList.add("route");
+          if (current && current.x === x && current.y === y) node.classList.add("current");
+          if (ENTRY.x === x && ENTRY.y === y) node.classList.add("entry");
+          if (EXIT.x === x && EXIT.y === y) node.classList.add("exit");
+          node.title = `(${x},${y}) ${cell.tagId || ""}`;
+          node.innerHTML = `<span class="tag">${cell.tagId || ""}</span><span class="coord">${x},${y}</span>`;
+          node.addEventListener("click", () => {
+            current = { x, y };
+            getCell(x, y).known = true;
+            recalculateRoute();
+          });
+          el.grid.appendChild(node);
+        }
+      }
+
+      el.routeList.textContent = route.length > 0
+        ? `Route: ${route.map((p) => `(${p.x},${p.y})`).join(" -> ")}`
+        : "No line-follow route available.";
+      updateMetrics({});
+    }
+
+    async function connectSerial() {
+      if (!("serial" in navigator)) {
+        appendLog("Web Serial is unavailable. Use Chrome or Edge on http://localhost.");
+        return;
+      }
+
+      serialPort = await navigator.serial.requestPort();
+      await serialPort.open({ baudRate: 115200 });
+      keepReading = true;
+      el.connectBtn.disabled = true;
+      el.disconnectBtn.disabled = false;
+
+      const decoder = new TextDecoderStream();
+      serialPort.readable.pipeTo(decoder.writable).catch(() => {});
+      serialReader = decoder.readable.getReader();
+
+      while (keepReading) {
+        const { value, done } = await serialReader.read();
+        if (done) break;
+        pendingText += value;
+        const lines = pendingText.split(/\r?\n/);
+        pendingText = lines.pop() || "";
+        for (const line of lines) parseLine(line);
+      }
+    }
+
+    async function disconnectSerial() {
+      keepReading = false;
+      if (serialReader) {
+        await serialReader.cancel().catch(() => {});
+        serialReader.releaseLock();
+        serialReader = null;
+      }
+      if (serialPort) {
+        await serialPort.close().catch(() => {});
+        serialPort = null;
+      }
+      el.connectBtn.disabled = false;
+      el.disconnectBtn.disabled = true;
+    }
+
+    function loadSample() {
+      el.pasteBox.value = [
+        "[status] GridDrive seeds=1 motor=ok encoder=ok kill=safe heartbeat=ok lidarF=96cm",
+        "[mqtt] rx type=isFertileReply tag_id=A1 fertile=true planted=false x=4 y=4",
+        "[nav] grid cell 4,4 fertile=true planted=false blocked=false",
+        "[mqtt] rx type=isFertileReply tag_id=B2 fertile=false planted=false x=5 y=4",
+        "[nav] grid cell 5,4 fertile=false planted=false blocked=false",
+        "[mqtt] rx type=isFertileReply tag_id=C3 fertile=true planted=false x=8 y=3",
+        "[nav] grid cell 8,3 fertile=true planted=false blocked=false",
+        "[mqtt] rx type=isFertileReply tag_id=NO_LINE fertile=true planted=false x=8 y=5",
+        "[nav] grid cell 8,5 fertile=true planted=false blocked=false",
+        "[mqtt] rx type=isFertileReply tag_id=WALL fertile=false planted=false blocked=true x=6 y=4",
+        "[nav] grid cell 6,4 fertile=false planted=false blocked=true",
+        "[nav] route 6 cells: (4,4) (4,3) (5,3) (6,3) (7,3) (8,3)"
+      ].join("\n");
+    }
+
+    el.connectBtn.addEventListener("click", () => connectSerial().catch((error) => appendLog(error.message)));
+    el.disconnectBtn.addEventListener("click", () => disconnectSerial());
+    el.sampleBtn.addEventListener("click", loadSample);
+    el.clearBtn.addEventListener("click", clearData);
+    el.parseBtn.addEventListener("click", () => {
+      for (const line of el.pasteBox.value.split(/\r?\n/)) parseLine(line);
+      render();
+    });
+    el.recalcBtn.addEventListener("click", recalculateRoute);
+    el.targetMode.addEventListener("change", recalculateRoute);
+    el.markCurrentPlantedBtn.addEventListener("click", () => {
+      if (!current) return;
+      const cell = getCell(current.x, current.y);
+      cell.known = true;
+      cell.fertile = true;
+      cell.planted = true;
+      recalculateRoute();
+    });
+
+    clearData();
+  </script>
+</body>
+</html>

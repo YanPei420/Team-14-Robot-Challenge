@@ -17,10 +17,10 @@ struct LineFollowerConfig
     int16_t hardTurnForward = 80;
     int16_t hardTurnError = 2200;
     int16_t maxTurn = 450;
-    uint16_t blackThreshold = 850;
+    uint16_t blackThreshold = 400;
     int16_t sensorStep = 1000;
-    float irKp = 0.08f;
-    float irKd = 0.003f;
+    float irKp = 0.07f;
+    float irKd = 0.004f;
     float irDirection = 1.0f;
     bool requireEncoderSpeedControl = true;
     Stream* logOutput = nullptr;

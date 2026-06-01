@@ -32,6 +32,11 @@ bool MotoronDrive::begin()
 
     stop_all();
 
+    if (MOTOR_SPEED_CONTROL_AUTO_BEGIN)
+    {
+        begin_encoder_speed_control();
+    }
+
     return front_.getLastError() == 0 && rear_.getLastError() == 0;
 }
 
@@ -46,18 +51,15 @@ void MotoronDrive::setupController(MotoronI2C& controller)
     controller.setMaxDeceleration(1, MOTOR_MAX_DECELERATION);
     controller.setMaxAcceleration(2, MOTOR_MAX_ACCELERATION);
     controller.setMaxDeceleration(2, MOTOR_MAX_DECELERATION);
+    controller.setMaxAcceleration(3, MOTOR_MAX_ACCELERATION);
+    controller.setMaxDeceleration(3, MOTOR_MAX_DECELERATION);
 }
 
 void MotoronDrive::resetEncoderSpeedControlState()
 {
     for (uint8_t i = 0; i < WHEEL_COUNT; i++)
     {
-        measuredRPM_[i] = 0.0f;
-        targetRPM_[i] = 0.0f;
-        speedError_[i] = 0.0f;
-        lastSpeedError_[i] = 0.0f;
-        speedIntegral_[i] = 0.0f;
-        speedCorrection_[i] = 0.0f;
+        resetWheelSpeedControlState(i);
     }
 
     lastSpeedControlMs_ = millis();
@@ -68,6 +70,44 @@ void MotoronDrive::resetEncoderSpeedControlState()
     }
 }
 
+void MotoronDrive::resetWheelSpeedControlState(uint8_t wheel)
+{
+    if (wheel >= WHEEL_COUNT)
+    {
+        return;
+    }
+
+    measuredRPM_[wheel] = 0.0f;
+    targetRPM_[wheel] = 0.0f;
+    speedError_[wheel] = 0.0f;
+    lastSpeedError_[wheel] = 0.0f;
+    speedIntegral_[wheel] = 0.0f;
+    speedCorrection_[wheel] = 0.0f;
+}
+
+void MotoronDrive::setWheelTarget(uint8_t wheel, int16_t speed)
+{
+    if (wheel >= WHEEL_COUNT)
+    {
+        return;
+    }
+
+    speed = clampSpeed(speed);
+
+    const int16_t oldSpeed = targetSpeed_[wheel];
+    const bool directionChanged =
+        (oldSpeed > 0 && speed < 0)
+        || (oldSpeed < 0 && speed > 0);
+    const bool startingOrStopping = oldSpeed == 0 || speed == 0;
+
+    targetSpeed_[wheel] = speed;
+
+    if (directionChanged || startingOrStopping)
+    {
+        resetWheelSpeedControlState(wheel);
+    }
+}
+
 void MotoronDrive::setTargetSpeeds(
     int16_t frontLeft,
     int16_t frontRight,
@@ -75,10 +115,10 @@ void MotoronDrive::setTargetSpeeds(
     int16_t rearRight
 )
 {
-    targetSpeed_[FRONT_LEFT] = clampSpeed(frontLeft);
-    targetSpeed_[FRONT_RIGHT] = clampSpeed(frontRight);
-    targetSpeed_[REAR_LEFT] = clampSpeed(rearLeft);
-    targetSpeed_[REAR_RIGHT] = clampSpeed(rearRight);
+    setWheelTarget(FRONT_LEFT, frontLeft);
+    setWheelTarget(FRONT_RIGHT, frontRight);
+    setWheelTarget(REAR_LEFT, rearLeft);
+    setWheelTarget(REAR_RIGHT, rearRight);
 }
 
 void MotoronDrive::writeWheelOutputs(
@@ -165,6 +205,19 @@ void MotoronDrive::writeTargetsWithCorrections(bool immediate)
         output[REAR_RIGHT],
         immediate
     );
+}
+
+void MotoronDrive::applyTargetSpeeds(bool immediate)
+{
+    if (encoderSpeedControlEnabled_ && encoderSpeedControlReady_)
+    {
+        if (update_encoder_speed_control())
+        {
+            return;
+        }
+    }
+
+    writeTargetsWithCorrections(immediate);
 }
 
 float MotoronDrive::absFloat(float value) const
@@ -413,6 +466,11 @@ bool MotoronDrive::update_encoder_speed_control()
     return true;
 }
 
+bool MotoronDrive::update()
+{
+    return update_encoder_speed_control();
+}
+
 void MotoronDrive::reset_encoder_speed_control()
 {
     resetEncoderSpeedControlState();
@@ -433,26 +491,26 @@ MotoronSpeedControlConfig MotoronDrive::get_encoder_speed_control_config() const
 
 void MotoronDrive::set_front_left(int16_t speed)
 {
-    targetSpeed_[FRONT_LEFT] = clampSpeed(speed);
-    writeTargetsWithCorrections();
+    setWheelTarget(FRONT_LEFT, speed);
+    applyTargetSpeeds();
 }
 
 void MotoronDrive::set_front_right(int16_t speed)
 {
-    targetSpeed_[FRONT_RIGHT] = clampSpeed(speed);
-    writeTargetsWithCorrections();
+    setWheelTarget(FRONT_RIGHT, speed);
+    applyTargetSpeeds();
 }
 
 void MotoronDrive::set_rear_left(int16_t speed)
 {
-    targetSpeed_[REAR_LEFT] = clampSpeed(speed);
-    writeTargetsWithCorrections();
+    setWheelTarget(REAR_LEFT, speed);
+    applyTargetSpeeds();
 }
 
 void MotoronDrive::set_rear_right(int16_t speed)
 {
-    targetSpeed_[REAR_RIGHT] = clampSpeed(speed);
-    writeTargetsWithCorrections();
+    setWheelTarget(REAR_RIGHT, speed);
+    applyTargetSpeeds();
 }
 
 void MotoronDrive::set_all(
@@ -463,7 +521,7 @@ void MotoronDrive::set_all(
 )
 {
     setTargetSpeeds(frontLeft, frontRight, rearLeft, rearRight);
-    writeTargetsWithCorrections();
+    applyTargetSpeeds();
 }
 
 void MotoronDrive::get_wheel_speeds(
@@ -608,6 +666,7 @@ void MotoronDrive::stop_all()
     setTargetSpeeds(0, 0, 0, 0);
     resetEncoderSpeedControlState();
     writeWheelOutputs(0, 0, 0, 0, true);
+    rear_.setSpeedNow(3, 0);
 }
 
 void MotoronDrive::setFrontRaw(int16_t motor1, int16_t motor2, bool immediate)

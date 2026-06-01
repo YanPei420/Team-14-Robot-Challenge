@@ -39,10 +39,10 @@ constexpr uint8_t MOTOR_ENCODER_FRONT_LEFT_A_PIN  = 24; // FL encoder A
 constexpr uint8_t MOTOR_ENCODER_FRONT_LEFT_B_PIN  = 25; // FL encoder B
 constexpr uint8_t MOTOR_ENCODER_FRONT_RIGHT_A_PIN = 22; // FR encoder A
 constexpr uint8_t MOTOR_ENCODER_FRONT_RIGHT_B_PIN = 23; // FR encoder B
-constexpr uint8_t MOTOR_ENCODER_REAR_LEFT_A_PIN   = 26; // RL encoder A
-constexpr uint8_t MOTOR_ENCODER_REAR_LEFT_B_PIN   = 27; // RL encoder B
-constexpr uint8_t MOTOR_ENCODER_REAR_RIGHT_A_PIN  = 28; // RR encoder A
-constexpr uint8_t MOTOR_ENCODER_REAR_RIGHT_B_PIN  = 29; // RR encoder B
+constexpr uint8_t MOTOR_ENCODER_REAR_LEFT_A_PIN   = 28; // RL encoder A
+constexpr uint8_t MOTOR_ENCODER_REAR_LEFT_B_PIN   = 29; // RL encoder B
+constexpr uint8_t MOTOR_ENCODER_REAR_RIGHT_A_PIN  = 26; // RR encoder A
+constexpr uint8_t MOTOR_ENCODER_REAR_RIGHT_B_PIN  = 27; // RR encoder B
 
 constexpr int8_t MOTOR_ENCODER_FRONT_LEFT_DIRECTION =
     MOTOR_FRONT_LEFT_DIRECTION;
@@ -58,6 +58,7 @@ constexpr int8_t MOTOR_ENCODER_REAR_RIGHT_DIRECTION =
 // ======================================================
 
 constexpr uint16_t MOTOR_SPEED_CONTROL_INTERVAL_MS = 50;
+constexpr bool MOTOR_SPEED_CONTROL_AUTO_BEGIN = true;
 constexpr float MOTOR_SPEED_CONTROL_MAX_WHEEL_RPM = 180.0f;
 constexpr float MOTOR_SPEED_CONTROL_KP = 2.0f;
 constexpr float MOTOR_SPEED_CONTROL_KI = 0.25f;

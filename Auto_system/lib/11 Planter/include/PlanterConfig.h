@@ -1,0 +1,22 @@
+#pragma once
+
+#include <Arduino.h>
+
+constexpr uint8_t PLANTER_ENCODER_A_PIN = 40;
+constexpr uint8_t PLANTER_ENCODER_B_PIN = 41;
+
+constexpr uint8_t PLANTER_MOTOR_CHANNEL = 3;
+constexpr int16_t PLANTER_MOTOR_SPEED = 300;
+constexpr int8_t PLANTER_MOTOR_DIRECTION = 1;
+
+constexpr uint16_t PLANTER_GEAR_RATIO = 100;
+constexpr uint16_t PLANTER_ENCODER_PULSES_PER_MOTOR_REV = 11;
+constexpr uint8_t PLANTER_ENCODER_EDGES_PER_PULSE = 4;
+constexpr int32_t PLANTER_COUNTS_PER_REV =
+    PLANTER_ENCODER_PULSES_PER_MOTOR_REV
+    * PLANTER_GEAR_RATIO
+    * PLANTER_ENCODER_EDGES_PER_PULSE;
+constexpr int32_t PLANTER_COUNTS_PER_HALF_TURN =
+    PLANTER_COUNTS_PER_REV / 2;
+
+constexpr uint32_t PLANTER_TIMEOUT_MS = 3000;

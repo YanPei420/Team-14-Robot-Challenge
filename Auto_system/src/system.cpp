@@ -4,10 +4,10 @@
 
 #if defined(CORE_CM7)
 
-#include <Servo.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "IRConfig.h"
 #include "IRSensor.h"
@@ -18,9 +18,9 @@
 #include "MiniMessenger.h"
 #include "MotorConfig.h"
 #include "MotoronDrive.h"
+#include "Planter.h"
 #include "RFIDHandler.h"
 #include "ReviveButton.h"
-#include "ServoConfig.h"
 #include "WallFollower.h"
 #include "WiFiHandlerConfig.h"
 
@@ -28,7 +28,7 @@ namespace
 {
 constexpr uint32_t SERIAL_BAUD = 115200;
 constexpr uint32_t STATUS_INTERVAL_MS = 500;
-constexpr uint32_t LIDAR_FRESH_MS = 350;
+constexpr uint32_t LIDAR_FRESH_MS = 200;
 
 constexpr int16_t LINE_SPEED = 220;
 constexpr int16_t GRID_SPEED = 210;
@@ -57,14 +57,17 @@ constexpr uint32_t SERVER_REQUEST_RETRY_MS = 1000;
 constexpr uint32_t SOIL_QUERY_TIMEOUT_MS = 2500;
 constexpr uint32_t ALIGN_SEARCH_MS = 500;
 constexpr uint32_t FINE_ADJUST_MS = 700;
-constexpr uint32_t HOPPER_OPEN_MS = 500;
-constexpr uint32_t DROP_SEED_MS = 700;
 constexpr uint32_t PLANT_VERIFY_MS = 300;
 constexpr uint32_t RFID_COOLDOWN_MS = 2000;
 
 constexpr uint8_t MAX_SEEDS = 5;
-constexpr int HOPPER_CLOSED_ANGLE = SERVO_SWEEP_MIN;
-constexpr int HOPPER_OPEN_ANGLE = SERVO_SWEEP_MAX;
+constexpr uint8_t GRID_WIDTH = 9;
+constexpr uint8_t GRID_HEIGHT = 9;
+constexpr uint8_t GRID_CELL_COUNT = GRID_WIDTH * GRID_HEIGHT;
+constexpr uint8_t GRID_AIRLOCK_ROW = 1;
+constexpr uint8_t GRID_ENTRY_COLUMN = 3;
+constexpr uint8_t GRID_EXIT_COLUMN = 7;
+constexpr uint8_t GRID_LINE_ROW_LIMIT = 4;
 
 enum class RunState : uint8_t
 {
@@ -87,6 +90,7 @@ enum class RunState : uint8_t
     InsideBase,
     Stranded,
     ManualControl,
+    PlanterTest,
     Finished
 };
 
@@ -103,6 +107,23 @@ enum class ManualCommand : uint8_t
     WallFollow
 };
 
+struct GridPoint
+{
+    int8_t x;
+    int8_t y;
+};
+
+struct GridCell
+{
+    int8_t x;
+    int8_t y;
+    bool known;
+    bool fertile;
+    bool planted;
+    bool blocked;
+    char tagId[40];
+};
+
 MotoronDrive robot(MOTORON_ADDR_FRONT, MOTORON_ADDR_REAR);
 IRSensor lineSensors(IR_PINS, IR_SENSOR_COUNT);
 LidarSensor lidarLeft(LIDAR_SERIAL_1);
@@ -115,7 +136,7 @@ KillSwitch killSwitch;
 ReviveButton reviveButton;
 LED statusLed;
 MiniMessenger messenger;
-Servo hopperServo;
+Planter planter(robot);
 
 RunState state = RunState::Idle;
 
@@ -136,6 +157,13 @@ bool missionCompleteSent = false;
 bool rfidDetectedThisLoop = false;
 
 uint8_t seedsPlanted = 0;
+
+GridCell arenaGrid[GRID_HEIGHT][GRID_WIDTH];
+GridPoint currentGridPosition = {-1, -1};
+GridPoint routeTargetPosition = {-1, -1};
+GridPoint plannedRoute[GRID_CELL_COUNT];
+uint8_t plannedRouteLength = 0;
+bool plannedRouteValid = false;
 
 ManualCommand manualCommand = ManualCommand::Stop;
 int16_t manualSpeed = MANUAL_SPEED_DEFAULT;
@@ -200,6 +228,8 @@ const char* stateName(RunState value)
             return "Stranded";
         case RunState::ManualControl:
             return "ManualControl";
+        case RunState::PlanterTest:
+            return "PlanterTest";
         case RunState::Finished:
             return "Finished";
     }
@@ -210,6 +240,11 @@ const char* stateName(RunState value)
 void stopRobot()
 {
     robot.stop_all();
+}
+
+void stopDriveWheels()
+{
+    robot.set_all(0, 0, 0, 0);
 }
 
 void printSerialHelp()
@@ -224,6 +259,7 @@ void printSerialHelp()
     Serial.println("  Q/E - manual rotate left/right");
     Serial.println("  L - manual line follow");
     Serial.println("  G - manual wall follow");
+    Serial.println("  O/C/T - run planter 180-degree cycle");
     Serial.println("  0 or Space - manual stop");
     Serial.println("  + / - - manual speed up/down");
     Serial.println("  ? - print this help");
@@ -231,12 +267,12 @@ void printSerialHelp()
 
 void closeHopper()
 {
-    hopperServo.write(HOPPER_CLOSED_ANGLE);
+    planter.stop();
 }
 
 void openHopper()
 {
-    hopperServo.write(HOPPER_OPEN_ANGLE);
+    planter.startCycle();
 }
 
 void resetLineControl()
@@ -381,6 +417,385 @@ bool tokenFalse(const char* text, const char* key)
     }
 
     return strcmp(value, "0") == 0 || strcmp(value, "false") == 0;
+}
+
+bool extractIntValue(const char* text, const char* key, int& output)
+{
+    char value[12] = {0};
+    if (!extractValue(text, key, value, sizeof(value)))
+    {
+        return false;
+    }
+
+    output = atoi(value);
+    return true;
+}
+
+bool gridCoordinateToIndex(int x, int y, uint8_t& indexX, uint8_t& indexY)
+{
+    if (
+        x >= 1 && x <= static_cast<int>(GRID_WIDTH) &&
+        y >= 1 && y <= static_cast<int>(GRID_HEIGHT)
+    )
+    {
+        indexX = static_cast<uint8_t>(x - 1);
+        indexY = static_cast<uint8_t>(y - 1);
+        return true;
+    }
+
+    if (
+        x >= 0 && x < static_cast<int>(GRID_WIDTH) &&
+        y >= 0 && y < static_cast<int>(GRID_HEIGHT)
+    )
+    {
+        indexX = static_cast<uint8_t>(x);
+        indexY = static_cast<uint8_t>(y);
+        return true;
+    }
+
+    return false;
+}
+
+bool gridPointToIndex(GridPoint point, uint8_t& indexX, uint8_t& indexY)
+{
+    return gridCoordinateToIndex(point.x, point.y, indexX, indexY);
+}
+
+bool gridIndexHasLine(uint8_t indexY)
+{
+    return indexY < GRID_LINE_ROW_LIMIT;
+}
+
+void resetPlannedRoute()
+{
+    routeTargetPosition = {-1, -1};
+    plannedRouteLength = 0;
+    plannedRouteValid = false;
+}
+
+void initializeGridMap()
+{
+    for (uint8_t y = 0; y < GRID_HEIGHT; ++y)
+    {
+        for (uint8_t x = 0; x < GRID_WIDTH; ++x)
+        {
+            arenaGrid[y][x].x = static_cast<int8_t>(x + 1);
+            arenaGrid[y][x].y = static_cast<int8_t>(y + 1);
+            arenaGrid[y][x].known = false;
+            arenaGrid[y][x].fertile = false;
+            arenaGrid[y][x].planted = false;
+            arenaGrid[y][x].blocked = false;
+            arenaGrid[y][x].tagId[0] = '\0';
+        }
+    }
+
+    uint8_t entryX = 0;
+    uint8_t entryY = 0;
+    uint8_t exitX = 0;
+    uint8_t exitY = 0;
+    if (
+        gridCoordinateToIndex(GRID_ENTRY_COLUMN, GRID_AIRLOCK_ROW, entryX, entryY) &&
+        gridCoordinateToIndex(GRID_EXIT_COLUMN, GRID_AIRLOCK_ROW, exitX, exitY)
+    )
+    {
+        arenaGrid[entryY][entryX].known = true;
+        arenaGrid[exitY][exitX].known = true;
+    }
+
+    currentGridPosition = {-1, -1};
+    resetPlannedRoute();
+}
+
+void printPlannedRoute()
+{
+    if (!plannedRouteValid || plannedRouteLength == 0)
+    {
+        Serial.println("[nav] no route");
+        return;
+    }
+
+    Serial.print("[nav] route ");
+    Serial.print(plannedRouteLength);
+    Serial.print(" cells:");
+
+    for (uint8_t i = 0; i < plannedRouteLength; ++i)
+    {
+        Serial.print(" (");
+        Serial.print(plannedRoute[i].x);
+        Serial.print(",");
+        Serial.print(plannedRoute[i].y);
+        Serial.print(")");
+    }
+
+    Serial.println();
+}
+
+bool calculateRoute(GridPoint start, GridPoint target)
+{
+    uint8_t startX = 0;
+    uint8_t startY = 0;
+    uint8_t targetX = 0;
+    uint8_t targetY = 0;
+
+    resetPlannedRoute();
+
+    if (
+        !gridPointToIndex(start, startX, startY) ||
+        !gridPointToIndex(target, targetX, targetY) ||
+        arenaGrid[startY][startX].blocked ||
+        arenaGrid[targetY][targetX].blocked ||
+        !gridIndexHasLine(startY) ||
+        !gridIndexHasLine(targetY)
+    )
+    {
+        return false;
+    }
+
+    bool visited[GRID_HEIGHT][GRID_WIDTH] = {};
+    int8_t previousX[GRID_HEIGHT][GRID_WIDTH];
+    int8_t previousY[GRID_HEIGHT][GRID_WIDTH];
+    GridPoint queue[GRID_CELL_COUNT];
+    uint8_t head = 0;
+    uint8_t tail = 0;
+
+    for (uint8_t y = 0; y < GRID_HEIGHT; ++y)
+    {
+        for (uint8_t x = 0; x < GRID_WIDTH; ++x)
+        {
+            previousX[y][x] = -1;
+            previousY[y][x] = -1;
+        }
+    }
+
+    visited[startY][startX] = true;
+    queue[tail++] = {static_cast<int8_t>(startX), static_cast<int8_t>(startY)};
+
+    while (head < tail)
+    {
+        const GridPoint current = queue[head++];
+        if (current.x == static_cast<int8_t>(targetX) &&
+            current.y == static_cast<int8_t>(targetY))
+        {
+            break;
+        }
+
+        const int8_t offsetsX[4] = {1, -1, 0, 0};
+        const int8_t offsetsY[4] = {0, 0, 1, -1};
+
+        for (uint8_t i = 0; i < 4; ++i)
+        {
+            const int8_t nextX = current.x + offsetsX[i];
+            const int8_t nextY = current.y + offsetsY[i];
+
+            if (
+                nextX < 0 ||
+                nextY < 0 ||
+                nextX >= static_cast<int8_t>(GRID_WIDTH) ||
+                nextY >= static_cast<int8_t>(GRID_HEIGHT)
+            )
+            {
+                continue;
+            }
+
+            if (
+                visited[nextY][nextX] ||
+                arenaGrid[nextY][nextX].blocked ||
+                !gridIndexHasLine(nextY)
+            )
+            {
+                continue;
+            }
+
+            visited[nextY][nextX] = true;
+            previousX[nextY][nextX] = current.x;
+            previousY[nextY][nextX] = current.y;
+            queue[tail++] = {nextX, nextY};
+        }
+    }
+
+    if (!visited[targetY][targetX])
+    {
+        return false;
+    }
+
+    GridPoint reverseRoute[GRID_CELL_COUNT];
+    uint8_t reverseLength = 0;
+    int8_t cursorX = static_cast<int8_t>(targetX);
+    int8_t cursorY = static_cast<int8_t>(targetY);
+
+    while (cursorX >= 0 && cursorY >= 0 && reverseLength < GRID_CELL_COUNT)
+    {
+        reverseRoute[reverseLength++] = {
+            arenaGrid[cursorY][cursorX].x,
+            arenaGrid[cursorY][cursorX].y
+        };
+
+        if (cursorX == static_cast<int8_t>(startX) &&
+            cursorY == static_cast<int8_t>(startY))
+        {
+            break;
+        }
+
+        const int8_t nextCursorX = previousX[cursorY][cursorX];
+        const int8_t nextCursorY = previousY[cursorY][cursorX];
+        cursorX = nextCursorX;
+        cursorY = nextCursorY;
+    }
+
+    for (uint8_t i = 0; i < reverseLength; ++i)
+    {
+        plannedRoute[i] = reverseRoute[reverseLength - 1 - i];
+    }
+
+    routeTargetPosition = target;
+    plannedRouteLength = reverseLength;
+    plannedRouteValid = true;
+    return true;
+}
+
+bool findNearestPlantableCell(GridPoint& target)
+{
+    if (currentGridPosition.x < 0 || currentGridPosition.y < 0)
+    {
+        return false;
+    }
+
+    uint8_t currentX = 0;
+    uint8_t currentY = 0;
+    if (!gridPointToIndex(currentGridPosition, currentX, currentY))
+    {
+        return false;
+    }
+
+    bool found = false;
+    uint8_t bestDistance = GRID_CELL_COUNT;
+
+    for (uint8_t y = 0; y < GRID_HEIGHT; ++y)
+    {
+        for (uint8_t x = 0; x < GRID_WIDTH; ++x)
+        {
+            GridCell& cell = arenaGrid[y][x];
+            if (
+                !cell.known ||
+                !cell.fertile ||
+                cell.planted ||
+                cell.blocked ||
+                !gridIndexHasLine(y)
+            )
+            {
+                continue;
+            }
+
+            const uint8_t distance =
+                abs(static_cast<int>(x) - static_cast<int>(currentX)) +
+                abs(static_cast<int>(y) - static_cast<int>(currentY));
+
+            if (!found || distance < bestDistance)
+            {
+                found = true;
+                bestDistance = distance;
+                target = {cell.x, cell.y};
+            }
+        }
+    }
+
+    return found;
+}
+
+void calculateRouteToNearestPlantableCell()
+{
+    GridPoint target = {-1, -1};
+    if (!findNearestPlantableCell(target))
+    {
+        resetPlannedRoute();
+        Serial.println("[nav] no known plantable target");
+        return;
+    }
+
+    if (calculateRoute(currentGridPosition, target))
+    {
+        printPlannedRoute();
+    }
+    else
+    {
+        Serial.println("[nav] target exists but no line-follow route was found");
+    }
+}
+
+bool updateGridCellFromMessage(const char* message)
+{
+    int coordinateX = 0;
+    int coordinateY = 0;
+    if (
+        !extractIntValue(message, "x=", coordinateX) ||
+        !extractIntValue(message, "y=", coordinateY)
+    )
+    {
+        return false;
+    }
+
+    uint8_t indexX = 0;
+    uint8_t indexY = 0;
+    if (!gridCoordinateToIndex(coordinateX, coordinateY, indexX, indexY))
+    {
+        Serial.println("[nav] ignored RFID reply with out-of-range grid coordinate");
+        return false;
+    }
+
+    GridCell& cell = arenaGrid[indexY][indexX];
+    cell.x = static_cast<int8_t>(coordinateX);
+    cell.y = static_cast<int8_t>(coordinateY);
+    cell.known = true;
+    cell.fertile = tokenTrue(message, "fertile=");
+    cell.planted = tokenTrue(message, "planted=");
+    cell.blocked =
+        tokenTrue(message, "blocked=") ||
+        tokenTrue(message, "obstacle=");
+
+    if (pendingTagId[0] != '\0')
+    {
+        strncpy(cell.tagId, pendingTagId, sizeof(cell.tagId) - 1);
+        cell.tagId[sizeof(cell.tagId) - 1] = '\0';
+    }
+
+    currentGridPosition = {cell.x, cell.y};
+
+    Serial.print("[nav] grid cell ");
+    Serial.print(cell.x);
+    Serial.print(",");
+    Serial.print(cell.y);
+    Serial.print(" fertile=");
+    Serial.print(cell.fertile ? "true" : "false");
+    Serial.print(" planted=");
+    Serial.print(cell.planted ? "true" : "false");
+    Serial.print(" blocked=");
+    Serial.println(cell.blocked ? "true" : "false");
+
+    calculateRouteToNearestPlantableCell();
+    return true;
+}
+
+void markCurrentGridCellPlanted()
+{
+    uint8_t indexX = 0;
+    uint8_t indexY = 0;
+    if (!gridPointToIndex(currentGridPosition, indexX, indexY))
+    {
+        return;
+    }
+
+    GridCell& cell = arenaGrid[indexY][indexX];
+    cell.known = true;
+    cell.fertile = true;
+    cell.planted = true;
+
+    if (pendingTagId[0] != '\0')
+    {
+        strncpy(cell.tagId, pendingTagId, sizeof(cell.tagId) - 1);
+        cell.tagId[sizeof(cell.tagId) - 1] = '\0';
+    }
+
+    calculateRouteToNearestPlantableCell();
 }
 
 bool sendToServer(const char* payload)
@@ -563,6 +978,7 @@ void resetMission()
     soilAlreadyPlanted = false;
     pendingTagId[0] = '\0';
     lastRfidUid[0] = '\0';
+    initializeGridMap();
     closeHopper();
 }
 
@@ -596,6 +1012,7 @@ void setState(RunState next)
         case RunState::InsideBase:
         case RunState::Stranded:
         case RunState::ManualControl:
+        case RunState::PlanterTest:
         case RunState::Finished:
             stopRobot();
             break;
@@ -650,6 +1067,12 @@ void setState(RunState next)
         manualCommand = ManualCommand::Stop;
         lastManualCommandMs = 0;
     }
+    else if (state == RunState::PlanterTest)
+    {
+        manualCommand = ManualCommand::Stop;
+        openHopper();
+        Serial.println("[planter] test open");
+    }
 }
 
 bool heartbeatOk()
@@ -665,6 +1088,31 @@ bool safetyAllowed()
         && encoderControlReady
         && killSwitch.isSafe()
         && heartbeatOk();
+}
+
+bool manualControlAllowed()
+{
+    return motorReady && killSwitch.isSafe();
+}
+
+bool planterTestAllowed()
+{
+    return motorReady && killSwitch.isSafe();
+}
+
+bool localControlAllowed()
+{
+    if (state == RunState::ManualControl)
+    {
+        return manualControlAllowed();
+    }
+
+    if (state == RunState::PlanterTest)
+    {
+        return planterTestAllowed();
+    }
+
+    return false;
 }
 
 bool isArenaOrReturnState()
@@ -725,6 +1173,20 @@ void enterManualControl()
     manualCommand = ManualCommand::Stop;
     lastManualCommandMs = 0;
     setState(RunState::ManualControl);
+}
+
+void startPlanterTest()
+{
+    startRequested = false;
+    remoteReturnRequested = false;
+    manualCommand = ManualCommand::Stop;
+    stopRobot();
+    setState(RunState::PlanterTest);
+}
+
+void manualRunPlanterCycle()
+{
+    startPlanterTest();
 }
 
 void setManualCommand(ManualCommand command)
@@ -952,6 +1414,7 @@ void handleRemotePayload(
         soilFertile = tokenTrue(message, "fertile=");
         soilAlreadyPlanted = tokenTrue(message, "planted=");
         soilResponseReceived = true;
+        updateGridCellFromMessage(message);
         return;
     }
 }
@@ -984,8 +1447,27 @@ void pollSerialCommands()
         {
             manualCommand = ManualCommand::Stop;
             stopRobot();
+            closeHopper();
             setState(RunState::Idle);
             Serial.println("[serial] manual control disabled");
+            continue;
+        }
+
+        if (command == 'o' || command == 'O')
+        {
+            manualRunPlanterCycle();
+            continue;
+        }
+
+        if (command == 'c' || command == 'C')
+        {
+            manualRunPlanterCycle();
+            continue;
+        }
+
+        if (command == 't' || command == 'T')
+        {
+            startPlanterTest();
             continue;
         }
 
@@ -1055,7 +1537,7 @@ void updateInputs()
 
 void updateStatusLed()
 {
-    if (!safetyAllowed() || state == RunState::Stranded)
+    if ((!safetyAllowed() && !localControlAllowed()) || state == RunState::Stranded)
     {
         statusLed.showEmergency();
         return;
@@ -1165,6 +1647,7 @@ void finishPlanting()
         ++seedsPlanted;
     }
 
+    markCurrentGridCellPlanted();
     sendSeedPlanted();
 
     if (seedsPlanted >= MAX_SEEDS)
@@ -1199,6 +1682,24 @@ void retrySoilQuery()
     if (millis() - lastServerRequestMs >= SERVER_REQUEST_RETRY_MS)
     {
         sendIsFertile();
+    }
+}
+
+void updatePlanterTest()
+{
+    stopDriveWheels();
+
+    if (planter.update())
+    {
+        Serial.print("[planter] test complete counts=");
+        Serial.println(planter.position());
+        setState(RunState::ManualControl);
+    }
+    else if (planter.hasTimedOut())
+    {
+        Serial.print("[planter] test timeout counts=");
+        Serial.println(planter.position());
+        setState(RunState::ManualControl);
     }
 }
 
@@ -1373,18 +1874,30 @@ void updateState()
             break;
 
         case RunState::PlantOpen:
-            stopRobot();
-            if (stateElapsed(HOPPER_OPEN_MS))
+            stopDriveWheels();
+            if (planter.update())
             {
-                setState(RunState::PlantDrop);
+                setState(RunState::PlantVerify);
+            }
+            else if (planter.hasTimedOut())
+            {
+                Serial.print("[planter] planting timeout counts=");
+                Serial.println(planter.position());
+                setState(RunState::GridDrive);
             }
             break;
 
         case RunState::PlantDrop:
-            stopRobot();
-            if (stateElapsed(DROP_SEED_MS))
+            stopDriveWheels();
+            if (planter.update())
             {
                 setState(RunState::PlantVerify);
+            }
+            else if (planter.hasTimedOut())
+            {
+                Serial.print("[planter] planting timeout counts=");
+                Serial.println(planter.position());
+                setState(RunState::GridDrive);
             }
             break;
 
@@ -1451,6 +1964,10 @@ void updateState()
         case RunState::ManualControl:
             updateManualControl();
             break;
+
+        case RunState::PlanterTest:
+            updatePlanterTest();
+            break;
     }
 }
 } // namespace
@@ -1467,8 +1984,7 @@ void systemSetup()
     killSwitch.begin();
     reviveButton.begin();
     statusLed.begin();
-    hopperServo.attach(SERVO_PIN);
-    closeHopper();
+    initializeGridMap();
 
     motorReady = robot.begin();
     robot.set_max_speed(MOTOR_MAX_SPEED);
@@ -1479,6 +1995,7 @@ void systemSetup()
         resetLineControl();
     }
     stopRobot();
+    planter.begin();
 
     messenger.onMessage(handleRemotePayload);
     messenger.begin(
@@ -1514,7 +2031,10 @@ void systemLoop()
     sendRegister();
     updateInputs();
 
-    if (!safetyAllowed())
+    const bool autonomousAllowed = safetyAllowed();
+    const bool localAllowed = localControlAllowed();
+
+    if (!autonomousAllowed && !localAllowed)
     {
         manualCommand = ManualCommand::Stop;
         stopRobot();
@@ -1523,9 +2043,16 @@ void systemLoop()
         return;
     }
 
-    handleGlobalRequests();
+    if (autonomousAllowed)
+    {
+        handleGlobalRequests();
+    }
+
     updateState();
-    robot.update_encoder_speed_control();
+    if (encoderControlReady)
+    {
+        robot.update_encoder_speed_control();
+    }
     updateStatusLed();
     sendStatus();
 }

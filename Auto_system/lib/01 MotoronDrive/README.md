@@ -174,10 +174,13 @@ scaled down proportionally.
 ## Encoder Speed Control
 
 `MotoronDrive` can use the wheel encoders as a closed-loop speed controller.
-Normal movement calls such as `drive()`, `forward()`, and `rotate_left()` still
-set logical wheel targets. When encoder speed control is enabled, call
-`update_encoder_speed_control()` frequently from `loop()` so the library can
-sample RPM and adjust the actual Motoron outputs.
+By default `begin()` starts the encoder readers and enables closed-loop speed
+control. Normal movement calls such as `drive()`, `forward()`, and
+`rotate_left()` set logical wheel targets, then the library compares target RPM
+with encoder RPM and increases or decreases each wheel output as needed.
+
+Call `update()` or `update_encoder_speed_control()` frequently from `loop()` so
+the correction can keep running while the robot is moving.
 
 ```cpp
 MotoronDrive Robot(MOTORON_ADDR_FRONT, MOTORON_ADDR_REAR);
@@ -187,7 +190,7 @@ void setup()
     Robot.begin();
     Robot.set_max_speed(MOTOR_MAX_SPEED);
 
-    if (!Robot.begin_encoder_speed_control())
+    if (!Robot.encoder_speed_control_ready())
     {
         Serial.println("encoder speed control failed");
     }
@@ -196,7 +199,7 @@ void setup()
 void loop()
 {
     Robot.forward(300);
-    Robot.update_encoder_speed_control();
+    Robot.update();
 }
 ```
 
@@ -205,6 +208,7 @@ void loop()
 | `begin_encoder_speed_control(config)` | Starts all four encoder readers and enables closed-loop speed control. |
 | `set_encoder_speed_control_enabled(enabled)` | Enables or disables the closed-loop correction after the encoders have started. |
 | `update_encoder_speed_control()` | Samples encoder RPM and updates Motoron outputs when the control interval has elapsed. |
+| `update()` | Short alias for `update_encoder_speed_control()`. |
 | `reset_encoder_speed_control()` | Clears PID state and encoder counts. |
 | `set_encoder_speed_control_config(config)` | Updates the speed-control gains and limits. |
 | `get_applied_wheel_speeds(fl, fr, rl, rr)` | Reads the corrected logical outputs currently being sent to the wheels. |

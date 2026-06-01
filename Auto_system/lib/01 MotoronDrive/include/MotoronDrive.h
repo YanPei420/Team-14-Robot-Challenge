@@ -52,6 +52,9 @@ private:
     int16_t applyDirection(int16_t speed, int8_t direction) const;
     void setupController(MotoronI2C& controller);
     void resetEncoderSpeedControlState();
+    void resetWheelSpeedControlState(uint8_t wheel);
+    void setWheelTarget(uint8_t wheel, int16_t speed);
+    void applyTargetSpeeds(bool immediate = false);
     void setTargetSpeeds(
         int16_t frontLeft,
         int16_t frontRight,
@@ -95,6 +98,7 @@ public:
     bool encoder_speed_control_enabled() const;
     bool encoder_speed_control_ready() const;
     bool update_encoder_speed_control();
+    bool update();
     void reset_encoder_speed_control();
     void set_encoder_speed_control_config(
         const MotoronSpeedControlConfig& config

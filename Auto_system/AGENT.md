@@ -1,22 +1,19 @@
 # Auto System Robot - Agent Guide
 
-Target reader: coding agents with no prior knowledge of this project.
+Target reader: coding agents and developers with no prior project context.
 
-## Project Overview
+## Project Snapshot
 
 This is an embedded robotics firmware project for the Arduino Giga R1 WiFi. It uses PlatformIO with the Arduino framework and targets the Giga M7 core by default.
 
-The current `src/main.cpp` firmware is a WiFi/MQTT safety-gated drive program:
+Important current state:
 
-```text
-valid heartbeat with enable=1 -> drive forward
-stop/emergency/disable/enable=0 or heartbeat timeout -> stop all motors
-```
+- The active `src/main.cpp` is a Motoron drive diagnostic that commands `Robot.right(800)` in a loop.
+- The full challenge firmware is in `src/system.cpp` / `src/system.h`.
+- `src/main.cpp.bak` contains the thin competition entrypoint that calls `systemSetup()` and `systemLoop()`.
+- There is no active `src/RobotFSM.h` or `src/fsm/` tree in the current repository layout.
 
-The repository also contains a compile-ready hierarchical FSM in `src/RobotFSM.h` and `src/fsm/`, but that FSM is not currently connected to `main.cpp`selects the active firmware
-for each Giga core. The current entrypoint calls `M7Core::setup()/loop()` on
-`CORE_CM7` and `M4Core::setup()/loop()` on `CORE_CM4`, so the full challenge
-application is active by defaul.
+Do not assume a normal upload runs the autonomous challenge sequence until `src/main.cpp` has been restored to call `systemSetup()` / `systemLoop()`.
 
 ## Build Target
 
@@ -28,62 +25,6 @@ Framework: Arduino
 Language: C++  
 Repository root: `Auto_system/`
 
-## Repository Layout
-
-```text
-Auto_system/
-|-- platformio.ini
-|-- AGENT.md
-|-- FSM_STRUCTURE.md
-|-- navigation_fsm.md
-|-- docs/
-|   `-- hfsm_diagram.svg
-|-- include/
-|   `-- WiFiHandlerConfig.h
-|-- src/
-|   |-- main.cpp
-|   |-- RobotFSM.h
-|   `-- fsm/
-|       |-- Config.h
-|       |-- Core.cpp
-|       |-- Names.cpp
-|       |-- Safety.cpp
-|       |-- base/
-|       |   `-- Mission_base.cpp
-|       `-- grid/
-|           `-- Mission_grid.cpp
-|-- lib/
-|   |-- 01 MotoronDrive/
-|   |-- 02 KillSwitch/
-|   |-- 03 IR/
-|   |-- 04 LED/
-|   |-- 05 ReviveButton/
-|   |-- 06 RFID/
-|   |-- 07 Lidar/
-|   |-- Arduino_MFRC522v2-master/
-|   |-- MiniMessenger-main/
-|   `-- motoron-arduino-master/
-|-- test/
-`-- tool/
-```
-
-Generated PlatformIO output lives in `.pio/` and should not be edited by hand.
-
-## Build System
-
-Key configuration is in `platformio.ini`.
-
-Common settings:
-
-- Platform: `ststm32`
-- Framework: `arduino`
-- Monitor speed: `115200`
-- Default environment: `giga_m7`
-- Managed dependencies:
-  - `pololu/Motoron`
-  - `arduino-libraries/Servo`
-  - `arduino-libraries/ArduinoMqttClient`
-
 Common commands:
 
 ```bash
@@ -94,137 +35,277 @@ pio run -e giga_m7 --target upload
 pio device monitor -b 115200
 ```
 
-## Current Firmware Flow
+Managed dependencies:
 
-`src/main.cpp` creates:
+- `pololu/Motoron`
+- `arduino-libraries/Servo`
+- `arduino-libraries/ArduinoMqttClient`
+
+## Repository Layout
+
+```text
+Auto_system/
+|-- platformio.ini
+|-- README.md
+|-- AGENT.md
+|-- include/
+|   |-- WiFiHandlerConfig.h
+|   `-- Encoder.h
+|-- src/
+|   |-- main.cpp
+|   |-- main.cpp.bak
+|   |-- system.h
+|   `-- system.cpp
+|-- lib/
+|   |-- 01 MotoronDrive/
+|   |-- 02 KillSwitch/
+|   |-- 03 IR/
+|   |-- 04 LED/
+|   |-- 05 ReviveButton/
+|   |-- 06 RFID/
+|   |-- 07 Lidar/
+|   |-- 08 Servo/
+|   |-- 09 LineFollower/
+|   |-- 10 WallFollower/
+|   |-- 11 Planter/
+|   |-- Arduino_MFRC522v2-master/
+|   |-- MiniMessenger-main/
+|   `-- motoron-arduino-master/
+|-- test/
+|-- tool/
+`-- docs/
+```
+
+Generated PlatformIO output lives in `.pio/` and should not be edited by hand.
+
+## Entrypoints
+
+Current active diagnostic in `src/main.cpp`:
 
 ```cpp
-MotoronDrive robot;
-MiniMessenger messenger;
-LED statusLed;
+#include <Arduino.h>
+#include "MotoronDrive.h"
+
+MotoronDrive Robot(MOTORON_ADDR_FRONT, MOTORON_ADDR_REAR);
+
+void setup()
+{
+    Serial.begin(115200);
+    while (!Serial) {}
+
+    Robot.begin();
+}
+
+void loop()
+{
+    Robot.right(800);
+    Robot.update();
+    delay(10);
+}
 ```
 
-Startup:
+Competition entrypoint pattern:
 
-1. Start `Serial` at `115200`.
-2. Initialize `MotoronDrive`.
-3. Initialize status LED.
-4. Stop all motors.
-5. Connect MiniMessenger to WiFi/MQTT using `include/WiFiHandlerConfig.h`.
-6. Register `onMessage()` as the incoming-message callback.
+```cpp
+#include <Arduino.h>
+#include "system.h"
 
-Loop:
+void setup()
+{
+    systemSetup();
+}
 
-1. `messenger.loop()` processes WiFi/MQTT work.
-2. `sendRegister()` periodically sends `type=register team_id=14 board_id=Robot14`.
-3. Connection state changes are printed to serial.
-4. Heartbeat timeout disables safety.
-5. `movementEnabled()` decides whether motion is allowed.
-6. Enabled: LED normal state and `robot.forward(500)`.
-7. Disabled: emergency LED state and `robot.stop_all()`.
+void loop()
+{
+    systemLoop();
+}
+```
 
-Motion is allowed only when all conditions are true:
+Use the competition pattern when working on `src/system.cpp` behavior.
+
+## Competition System
+
+`src/system.cpp` compiles different code for each Giga core:
+
+- `CORE_CM7`: full autonomous system.
+- `CORE_CM4`: minimal serial setup and delay loop.
+
+The M7 system owns these major objects:
+
+- `MotoronDrive robot`
+- `IRSensor lineSensors`
+- `LidarSensor lidarLeft`, `lidarRight`, `lidarFront`
+- `LineFollower lineFollower`
+- `WallFollower tunnelFollower`
+- `RFIDHandler rfid`
+- `KillSwitch killSwitch`
+- `ReviveButton reviveButton`
+- `LED statusLed`
+- `MiniMessenger messenger`
+- `Planter planter`
+
+Startup order in `systemSetup()`:
+
+1. Start serial.
+2. Initialize sensors, kill switch, revive button, LED, and grid map.
+3. Initialize Motoron and encoder speed control.
+4. Stop the robot and initialize the planter.
+5. Register the MQTT callback.
+6. Connect MiniMessenger to WiFi/MQTT.
+7. Print readiness and serial help.
+
+Loop order in `systemLoop()`:
+
+1. Process MQTT.
+2. Poll serial commands.
+3. Send periodic register messages.
+4. Update kill switch, revive button, Lidars, and RFID.
+5. Apply autonomous/local safety gates.
+6. Handle global requests.
+7. Update the current state.
+8. Update encoder speed control.
+9. Update LED and status message.
+
+## Run States
+
+`RunState` currently contains:
 
 ```text
-safetyEnabled == true
-lastHeartbeatMs != 0
+Idle
+ExitLineToDoor
+ExitRequest
+ExitWaitDoor
+ExitTraverseTunnel
+GridDrive
+SoilQuery
+AlignSearch
+FineAdjust
+PlantOpen
+PlantDrop
+PlantVerify
+ReturnToAirlock
+EntryRequest
+EntryWaitDoor
+EntryTraverseTunnel
+InsideBase
+Stranded
+ManualControl
+PlanterTest
+Finished
+```
+
+State transitions are centralized through `setState()`. Check that function before adding entry actions, because it already resets control state, sends initial requests, starts planter cycles, and sends mission completion.
+
+## Safety
+
+Autonomous movement requires:
+
+```text
+motorReady == true
+killSwitch.isSafe() == true
+type=heartbeat enable=1 received
 heartbeat age <= WIFI_HEARTBEAT_TIMEOUT_MS
-last message is not stop/emergency/disable/enable=0
 ```
 
-## WiFi / MQTT Configuration
+Manual control and planter test are local-control modes, but the kill switch must still be safe.
 
-Configuration is in `include/WiFiHandlerConfig.h`:
-
-| Setting | Purpose |
-|---|---|
-| `WIFI_SSID` / `WIFI_PASSWORD` | Network credentials |
-| `BROKER_HOST` / `BROKER_PORT` | MQTT broker |
-| `GROUP_ID` | Team id |
-| `BOARD_ID` | This robot board id |
-| `SERVER_BOARD_ID` | Server board id |
-| `WIFI_REGISTER_INTERVAL_MS` | Register-message interval |
-| `WIFI_HEARTBEAT_TIMEOUT_MS` | Heartbeat timeout before stopping |
-
-Security note: WiFi credentials are currently stored in plain text. Redact them before publishing the repository.
-
-## MotoronDrive
-
-Location: `lib/01 MotoronDrive/`
-
-`MotoronDrive` wraps two `MotoronI2C` controllers on `Wire1`.
-
-Useful API:
-
-- `begin()`
-- `forward(speed)`
-- `backward(speed)`
-- `left(speed)`
-- `right(speed)`
-- `rotate_left(speed)`
-- `rotate_right(speed)`
-- `drive(vx, vy, w)`
-- `stop_all()`
-- `set_all(fl, fr, rl, rr)`
-- `get_wheel_speeds(fl, fr, rl, rr)`
-
-`drive(vx, vy, w)` uses mecanum-style mixing:
+When both autonomous and local control are blocked, `systemLoop()`:
 
 ```text
-frontLeft  = vx - vy - w
-frontRight = vx + vy + w
-rearLeft   = vx + vy - w
-rearRight  = vx - vy + w
+manualCommand = Stop
+robot.stop_all()
+updateStatusLed()
+sendStatus()
+return
 ```
 
-All wheel commands are clamped by `MOTOR_MAX_SPEED`.
+Keep new movement paths behind the same safety model unless a test sketch is intentionally isolated.
 
-## LED
+## MQTT Protocol
 
-Location: `lib/04 LED/`
+Configuration is in `include/WiFiHandlerConfig.h`.
 
-Current `main.cpp` uses:
-
-- `showNormal()`
-- `showEmergency()`
-
-Check `LEDConfig.h` for pin assignments.
-
-## Hierarchical FSM
-
-The FSM is declared in `src/RobotFSM.h` and documented in `FSM_STRUCTURE.md`.
-
-Implementation layout:
+Robot sends:
 
 ```text
-src/fsm/
-|-- Core.cpp
-|-- Names.cpp
-|-- Safety.cpp
-|-- base/
-|   `-- Mission_base.cpp
-`-- grid/
-    `-- Mission_grid.cpp
+type=register team_id=14 board_id=Robot14
+type=status team_id=14 board_id=Robot14 state=<state> seeds=<n> safety=<0|1>
+type=openAirlockB team_id=14 board_id=Robot14
+type=openAirlockA team_id=14 board_id=Robot14
+type=isFertile team_id=14 board_id=Robot14 tag_id=<uid>
+type=seedPlanted team_id=14 board_id=Robot14 tag_id=<uid> count=<n>
+type=missionComplete team_id=14 board_id=Robot14 seeds=<n>
 ```
 
-High-level state tree:
+Robot handles:
 
 ```text
-SafetyState
-|-- Normal
-|   `-- MissionState
-|       |-- Base
-|       |-- Grid
-|       |-- Stranded
-|       `-- Revived
-`-- EmergencyStop
+type=heartbeat enable=<1|0>
+type=start
+type=stop
+type=emergency
+type=disable
+type=return
+type=emergency_warning
+type=stranded
+type=revive
+type=base_reached
+type=openAirlockReply accepted=true airlock=<A|B>
+type=isFertileReply tag_id=<uid> x=<n> y=<n> fertile=<true|false> planted=<true|false> blocked=<true|false>
+type=rfid tag_id=<uid> x=<n> y=<n> fertile=<true|false> planted=<true|false> blocked=<true|false>
 ```
 
-Important note: the FSM currently compiles, but `main.cpp` does not instantiate or update it.
+RFID and fertility replies can update the internal arena grid. The routing helper currently uses a simple BFS over known, unblocked, line-followable cells.
+
+## Manual Control
+
+Serial commands in the competition system:
+
+```text
+S          start autonomous mission
+R          request return to base
+X          disable remote safety and stop
+M          enter manual control
+P          leave manual control and stop in Idle
+W/B/A/D    manual forward/back/left/right
+Q/E        manual rotate left/right
+L          manual line follow
+G          manual wall follow
+O/C/T      run planter 180-degree cycle
+0 or Space manual stop
++ / -      manual speed up/down
+?          print help
+```
+
+In `ManualControl`, `S` maps to backward movement and `W/A/S/D` behaves like keyboard driving.
+
+## Module Notes
+
+`lib/01 MotoronDrive/`
+
+- Wraps front and rear Motoron controllers.
+- Supports raw wheel commands, mecanum-style movement helpers, encoder reads, and encoder speed control.
+- Direction, addresses, encoder pins, and tuning live in `include/MotorConfig.h`.
+
+`lib/09 LineFollower/`
+
+- Uses IR sensor error and Motoron encoder support.
+- Requires encoder speed control by default.
+- Used during exit, arena driving, return, and manual line-follow mode.
+
+`lib/10 WallFollower/`
+
+- Uses left/right Lidars to center in tunnel traversal.
+- Used for exit and entry tunnel states and manual wall-follow mode.
+
+`lib/11 Planter/`
+
+- Runs an encoder-controlled 180-degree planting cycle.
+- `PlanterTest` and `PlantOpen` both rely on `planter.update()` completing or timing out.
 
 ## Code Style Guidelines
 
-- Match the existing C++ style.
+- Match existing C++ style.
 - Use 4-space indentation.
 - Opening braces for functions are on the next line.
 - Keep hardware constants in config headers.
@@ -235,7 +316,7 @@ Important note: the FSM currently compiles, but `main.cpp` does not instantiate 
 
 ## Testing
 
-Recommended checks:
+Recommended compile checks:
 
 ```bash
 pio run -e giga_m7
@@ -244,8 +325,4 @@ pio run -e giga_m4
 
 For movement changes, test with the robot lifted or physically constrained and keep a safe way to cut motor power.
 
-## Operational Notes
-
-- `stop_all()` should be called during startup and before unsafe states.
-- `MiniMessenger` heartbeat loss must fail safe to stopped motors.
-- The current firmware does not use `RobotFSM` yet, so FSM changes should be validated by build and by a future integration test when connected to `main.cpp`.
+Useful module sketches live in `test/`, and utility programs live in `tool/`.

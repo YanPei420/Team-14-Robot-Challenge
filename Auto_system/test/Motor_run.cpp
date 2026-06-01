@@ -13,6 +13,7 @@ void setup()
 
 void loop()
 {
-    Robot.rotate_left(500);
-    delay(1000);
+    Robot.right(800);
+    Robot.update();
+    delay(10);
 }
