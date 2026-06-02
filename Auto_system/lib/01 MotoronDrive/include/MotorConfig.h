@@ -32,6 +32,10 @@ constexpr uint16_t MOTOR_ENCODER_COUNTS_PER_OUTPUT_REV =
     * MOTOR_GEAR_RATIO
     * MOTOR_ENCODER_EDGES_PER_PULSE;
 
+constexpr float MOTOR_WHEEL_DIAMETER_MM = 65.0f;
+constexpr float MOTOR_WHEEL_CIRCUMFERENCE_MM =
+    MOTOR_WHEEL_DIAMETER_MM * 3.14159265f;
+
 // Encoder A/B pins on Arduino GIGA.
 // DG01D-E connector order in the reference photo:
 // pin 4 = Encoder A, pin 5 = Encoder B.
@@ -67,3 +71,14 @@ constexpr float MOTOR_SPEED_CONTROL_RPM_DEADBAND = 2.0f;
 constexpr float MOTOR_SPEED_CONTROL_INTEGRAL_LIMIT = 300.0f;
 constexpr int16_t MOTOR_SPEED_CONTROL_MAX_CORRECTION = 300;
 constexpr int16_t MOTOR_SPEED_CONTROL_MIN_OUTPUT = 60;
+
+// ======================================================
+// ENCODER DISTANCE MOVES
+// ======================================================
+
+constexpr float MOTOR_DISTANCE_MOVE_25CM = 25.0f;
+constexpr int16_t MOTOR_DISTANCE_MOVE_DEFAULT_SPEED = 220;
+constexpr int16_t MOTOR_DISTANCE_MOVE_MIN_SPEED = 80;
+constexpr uint16_t MOTOR_DISTANCE_MOVE_TOLERANCE_COUNTS = 24;
+constexpr uint16_t MOTOR_DISTANCE_MOVE_SLOWDOWN_COUNTS = 260;
+constexpr uint32_t MOTOR_DISTANCE_MOVE_TIMEOUT_MS = 5000;

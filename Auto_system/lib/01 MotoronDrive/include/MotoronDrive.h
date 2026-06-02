@@ -48,6 +48,13 @@ private:
     float speedIntegral_[WHEEL_COUNT];
     float speedCorrection_[WHEEL_COUNT];
 
+    bool distanceMoveActive_;
+    bool distanceMoveComplete_;
+    uint32_t distanceMoveStartedMs_;
+    uint32_t distanceMoveTimeoutMs_;
+    int16_t distanceMoveBaseSpeed_;
+    int32_t distanceMoveTargetCounts_[WHEEL_COUNT];
+
     int16_t clampSpeed(int16_t speed) const;
     int16_t applyDirection(int16_t speed, int8_t direction) const;
     void setupController(MotoronI2C& controller);
@@ -77,6 +84,18 @@ private:
         float measuredRPM,
         float dt
     );
+    int16_t normalizeDirection(int16_t value) const;
+    int16_t absSpeed(int16_t speed) const;
+    int32_t absCount(int32_t count) const;
+    bool startDistanceMove(
+        int16_t vxDirection,
+        int16_t vyDirection,
+        float distanceCm,
+        int16_t speed,
+        uint32_t timeoutMs
+    );
+    void finishDistanceMove(bool complete);
+    int16_t scaledDistanceMoveSpeed(int32_t remainingCounts) const;
     void setFrontRaw(int16_t motor1, int16_t motor2, bool immediate);
     void setRearRaw(int16_t motor1, int16_t motor2, bool immediate);
 
@@ -145,6 +164,48 @@ public:
         float& rearLeft,
         float& rearRight
     ) const;
+    int32_t distance_cm_to_encoder_counts(float distanceCm) const;
+
+    bool forward_25cm(
+        int16_t speed = MOTOR_DISTANCE_MOVE_DEFAULT_SPEED,
+        uint32_t timeoutMs = MOTOR_DISTANCE_MOVE_TIMEOUT_MS
+    );
+    bool backward_25cm(
+        int16_t speed = MOTOR_DISTANCE_MOVE_DEFAULT_SPEED,
+        uint32_t timeoutMs = MOTOR_DISTANCE_MOVE_TIMEOUT_MS
+    );
+    bool left_25cm(
+        int16_t speed = MOTOR_DISTANCE_MOVE_DEFAULT_SPEED,
+        uint32_t timeoutMs = MOTOR_DISTANCE_MOVE_TIMEOUT_MS
+    );
+    bool right_25cm(
+        int16_t speed = MOTOR_DISTANCE_MOVE_DEFAULT_SPEED,
+        uint32_t timeoutMs = MOTOR_DISTANCE_MOVE_TIMEOUT_MS
+    );
+    bool start_forward_cm(
+        float distanceCm,
+        int16_t speed = MOTOR_DISTANCE_MOVE_DEFAULT_SPEED,
+        uint32_t timeoutMs = MOTOR_DISTANCE_MOVE_TIMEOUT_MS
+    );
+    bool start_backward_cm(
+        float distanceCm,
+        int16_t speed = MOTOR_DISTANCE_MOVE_DEFAULT_SPEED,
+        uint32_t timeoutMs = MOTOR_DISTANCE_MOVE_TIMEOUT_MS
+    );
+    bool start_left_cm(
+        float distanceCm,
+        int16_t speed = MOTOR_DISTANCE_MOVE_DEFAULT_SPEED,
+        uint32_t timeoutMs = MOTOR_DISTANCE_MOVE_TIMEOUT_MS
+    );
+    bool start_right_cm(
+        float distanceCm,
+        int16_t speed = MOTOR_DISTANCE_MOVE_DEFAULT_SPEED,
+        uint32_t timeoutMs = MOTOR_DISTANCE_MOVE_TIMEOUT_MS
+    );
+    bool update_distance_move();
+    bool distance_move_active() const;
+    bool distance_move_complete() const;
+    void cancel_distance_move();
 
     void drive(int16_t vx, int16_t vy, int16_t w);
     void forward(int16_t speed);

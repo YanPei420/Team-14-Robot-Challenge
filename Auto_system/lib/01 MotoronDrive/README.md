@@ -143,6 +143,10 @@ sets acceleration/deceleration for channels 1 and 2, and stops all motors.
 | `rotate_left(speed)` | Rotate left. |
 | `rotate_right(speed)` | Rotate right. |
 | `drive(vx, vy, w)` | Mecanum drive command. `vx` is forward/back, `vy` is right/left, `w` is rotation. |
+| `forward_25cm(speed)` | Start a non-blocking encoder move forward by 25 cm. |
+| `backward_25cm(speed)` | Start a non-blocking encoder move backward by 25 cm. |
+| `left_25cm(speed)` | Start a non-blocking encoder strafe left by 25 cm. |
+| `right_25cm(speed)` | Start a non-blocking encoder strafe right by 25 cm. |
 | `stop()` | Alias for `stop_all()`. |
 | `stop_all()` | Immediately sets all four channels to zero with `setSpeedNow()`. |
 
@@ -157,6 +161,45 @@ rearRight  = vx - vy + w;
 
 If any computed wheel speed is above `maxSpeed`, all four wheel speeds are
 scaled down proportionally.
+
+## Encoder Distance Moves
+
+The distance helpers use the existing encoder speed controller plus a simple
+position target. The wheel diameter is configured as `65 mm` in
+`MotorConfig.h`, matching the DFRobot mecanum wheel sheet. With the default
+DG01D-E encoder settings, a 25 cm move is about `1410` encoder counts.
+
+Distance moves are non-blocking. Start the move once, then call
+`update_distance_move()` repeatedly from `loop()` until it returns `true`.
+
+```cpp
+bool moveStarted = false;
+
+void loop()
+{
+    if (!moveStarted)
+    {
+        moveStarted = Robot.forward_25cm(220);
+    }
+
+    if (Robot.distance_move_active() && Robot.update_distance_move())
+    {
+        Serial.println("25 cm move complete");
+    }
+}
+```
+
+| Method | Description |
+| --- | --- |
+| `start_forward_cm(distance, speed)` | Start an encoder-controlled forward move. |
+| `start_backward_cm(distance, speed)` | Start an encoder-controlled backward move. |
+| `start_left_cm(distance, speed)` | Start an encoder-controlled left strafe. |
+| `start_right_cm(distance, speed)` | Start an encoder-controlled right strafe. |
+| `update_distance_move()` | Update the active distance move; returns `true` when it completes. |
+| `distance_move_active()` | Returns whether a distance move is currently running. |
+| `distance_move_complete()` | Returns whether the last distance move completed successfully. |
+| `cancel_distance_move()` | Cancels the active distance move and stops the wheels. |
+| `distance_cm_to_encoder_counts(distance)` | Converts centimeters to encoder counts using the configured wheel diameter. |
 
 ## Wheel API
 

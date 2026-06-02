@@ -16,7 +16,13 @@ MotoronDrive::MotoronDrive(uint8_t frontAddress, uint8_t rearAddress)
       speedError_{0.0f, 0.0f, 0.0f, 0.0f},
       lastSpeedError_{0.0f, 0.0f, 0.0f, 0.0f},
       speedIntegral_{0.0f, 0.0f, 0.0f, 0.0f},
-      speedCorrection_{0.0f, 0.0f, 0.0f, 0.0f}
+      speedCorrection_{0.0f, 0.0f, 0.0f, 0.0f},
+      distanceMoveActive_(false),
+      distanceMoveComplete_(false),
+      distanceMoveStartedMs_(0),
+      distanceMoveTimeoutMs_(0),
+      distanceMoveBaseSpeed_(0),
+      distanceMoveTargetCounts_{0, 0, 0, 0}
 {
 }
 
@@ -328,6 +334,137 @@ int16_t MotoronDrive::computeControlledOutput(
     return clampSpeed(output);
 }
 
+int16_t MotoronDrive::normalizeDirection(int16_t value) const
+{
+    if (value > 0)
+    {
+        return 1;
+    }
+
+    if (value < 0)
+    {
+        return -1;
+    }
+
+    return 0;
+}
+
+int16_t MotoronDrive::absSpeed(int16_t speed) const
+{
+    return speed < 0 ? -speed : speed;
+}
+
+int32_t MotoronDrive::absCount(int32_t count) const
+{
+    return count < 0 ? -count : count;
+}
+
+int16_t MotoronDrive::scaledDistanceMoveSpeed(
+    int32_t remainingCounts
+) const
+{
+    int16_t speed = distanceMoveBaseSpeed_;
+    const int32_t remaining = absCount(remainingCounts);
+
+    if (
+        remaining < MOTOR_DISTANCE_MOVE_SLOWDOWN_COUNTS &&
+        MOTOR_DISTANCE_MOVE_SLOWDOWN_COUNTS > 0
+    )
+    {
+        const int16_t minSpeed =
+            distanceMoveBaseSpeed_ < MOTOR_DISTANCE_MOVE_MIN_SPEED
+                ? distanceMoveBaseSpeed_
+                : MOTOR_DISTANCE_MOVE_MIN_SPEED;
+        const int16_t range = distanceMoveBaseSpeed_ - minSpeed;
+        speed = minSpeed
+            + static_cast<int16_t>(
+                (static_cast<int32_t>(range) * remaining)
+                / MOTOR_DISTANCE_MOVE_SLOWDOWN_COUNTS
+            );
+    }
+
+    return clampSpeed(speed);
+}
+
+void MotoronDrive::finishDistanceMove(bool complete)
+{
+    distanceMoveActive_ = false;
+    distanceMoveComplete_ = complete;
+    setTargetSpeeds(0, 0, 0, 0);
+    resetEncoderSpeedControlState();
+    writeWheelOutputs(0, 0, 0, 0, true);
+}
+
+bool MotoronDrive::startDistanceMove(
+    int16_t vxDirection,
+    int16_t vyDirection,
+    float distanceCm,
+    int16_t speed,
+    uint32_t timeoutMs
+)
+{
+    vxDirection = normalizeDirection(vxDirection);
+    vyDirection = normalizeDirection(vyDirection);
+
+    if ((vxDirection == 0 && vyDirection == 0) || distanceCm <= 0.0f)
+    {
+        finishDistanceMove(true);
+        return true;
+    }
+
+    if (!encoderSpeedControlReady_ && !begin_encoder_speed_control())
+    {
+        finishDistanceMove(false);
+        return false;
+    }
+
+    if (!set_encoder_speed_control_enabled(true))
+    {
+        finishDistanceMove(false);
+        return false;
+    }
+
+    const int32_t targetCounts = distance_cm_to_encoder_counts(distanceCm);
+    if (targetCounts <= 0)
+    {
+        finishDistanceMove(true);
+        return true;
+    }
+
+    speed = clampSpeed(absSpeed(speed));
+    if (speed == 0)
+    {
+        speed = MOTOR_DISTANCE_MOVE_DEFAULT_SPEED;
+    }
+
+    distanceMoveTargetCounts_[FRONT_LEFT] =
+        normalizeDirection(vxDirection - vyDirection) * targetCounts;
+    distanceMoveTargetCounts_[FRONT_RIGHT] =
+        normalizeDirection(vxDirection + vyDirection) * targetCounts;
+    distanceMoveTargetCounts_[REAR_LEFT] =
+        normalizeDirection(vxDirection + vyDirection) * targetCounts;
+    distanceMoveTargetCounts_[REAR_RIGHT] =
+        normalizeDirection(vxDirection - vyDirection) * targetCounts;
+
+    distanceMoveActive_ = true;
+    distanceMoveComplete_ = false;
+    distanceMoveStartedMs_ = millis();
+    distanceMoveTimeoutMs_ = timeoutMs;
+    distanceMoveBaseSpeed_ = speed;
+
+    resetEncoderSpeedControlState();
+
+    setTargetSpeeds(
+        distanceMoveTargetCounts_[FRONT_LEFT] < 0 ? -speed : speed,
+        distanceMoveTargetCounts_[FRONT_RIGHT] < 0 ? -speed : speed,
+        distanceMoveTargetCounts_[REAR_LEFT] < 0 ? -speed : speed,
+        distanceMoveTargetCounts_[REAR_RIGHT] < 0 ? -speed : speed
+    );
+    applyTargetSpeeds(true);
+
+    return true;
+}
+
 int16_t MotoronDrive::clampSpeed(int16_t speed) const
 {
     if (speed > maxSpeed_)
@@ -468,6 +605,11 @@ bool MotoronDrive::update_encoder_speed_control()
 
 bool MotoronDrive::update()
 {
+    if (distanceMoveActive_)
+    {
+        return update_distance_move();
+    }
+
     return update_encoder_speed_control();
 }
 
@@ -491,24 +633,28 @@ MotoronSpeedControlConfig MotoronDrive::get_encoder_speed_control_config() const
 
 void MotoronDrive::set_front_left(int16_t speed)
 {
+    cancel_distance_move();
     setWheelTarget(FRONT_LEFT, speed);
     applyTargetSpeeds();
 }
 
 void MotoronDrive::set_front_right(int16_t speed)
 {
+    cancel_distance_move();
     setWheelTarget(FRONT_RIGHT, speed);
     applyTargetSpeeds();
 }
 
 void MotoronDrive::set_rear_left(int16_t speed)
 {
+    cancel_distance_move();
     setWheelTarget(REAR_LEFT, speed);
     applyTargetSpeeds();
 }
 
 void MotoronDrive::set_rear_right(int16_t speed)
 {
+    cancel_distance_move();
     setWheelTarget(REAR_RIGHT, speed);
     applyTargetSpeeds();
 }
@@ -520,6 +666,7 @@ void MotoronDrive::set_all(
     int16_t rearRight
 )
 {
+    cancel_distance_move();
     setTargetSpeeds(frontLeft, frontRight, rearLeft, rearRight);
     applyTargetSpeeds();
 }
@@ -586,8 +733,180 @@ void MotoronDrive::get_target_rpm(
     rearRight = targetRPM_[REAR_RIGHT];
 }
 
+int32_t MotoronDrive::distance_cm_to_encoder_counts(float distanceCm) const
+{
+    if (distanceCm < 0.0f)
+    {
+        distanceCm = -distanceCm;
+    }
+
+    if (
+        MOTOR_WHEEL_CIRCUMFERENCE_MM <= 0.0f ||
+        MOTOR_ENCODER_COUNTS_PER_OUTPUT_REV == 0
+    )
+    {
+        return 0;
+    }
+
+    const float distanceMm = distanceCm * 10.0f;
+    const float counts =
+        distanceMm
+        * static_cast<float>(MOTOR_ENCODER_COUNTS_PER_OUTPUT_REV)
+        / MOTOR_WHEEL_CIRCUMFERENCE_MM;
+
+    return static_cast<int32_t>(counts + 0.5f);
+}
+
+bool MotoronDrive::forward_25cm(int16_t speed, uint32_t timeoutMs)
+{
+    return start_forward_cm(MOTOR_DISTANCE_MOVE_25CM, speed, timeoutMs);
+}
+
+bool MotoronDrive::backward_25cm(int16_t speed, uint32_t timeoutMs)
+{
+    return start_backward_cm(MOTOR_DISTANCE_MOVE_25CM, speed, timeoutMs);
+}
+
+bool MotoronDrive::left_25cm(int16_t speed, uint32_t timeoutMs)
+{
+    return start_left_cm(MOTOR_DISTANCE_MOVE_25CM, speed, timeoutMs);
+}
+
+bool MotoronDrive::right_25cm(int16_t speed, uint32_t timeoutMs)
+{
+    return start_right_cm(MOTOR_DISTANCE_MOVE_25CM, speed, timeoutMs);
+}
+
+bool MotoronDrive::start_forward_cm(
+    float distanceCm,
+    int16_t speed,
+    uint32_t timeoutMs
+)
+{
+    return startDistanceMove(1, 0, distanceCm, speed, timeoutMs);
+}
+
+bool MotoronDrive::start_backward_cm(
+    float distanceCm,
+    int16_t speed,
+    uint32_t timeoutMs
+)
+{
+    return startDistanceMove(-1, 0, distanceCm, speed, timeoutMs);
+}
+
+bool MotoronDrive::start_left_cm(
+    float distanceCm,
+    int16_t speed,
+    uint32_t timeoutMs
+)
+{
+    return startDistanceMove(0, -1, distanceCm, speed, timeoutMs);
+}
+
+bool MotoronDrive::start_right_cm(
+    float distanceCm,
+    int16_t speed,
+    uint32_t timeoutMs
+)
+{
+    return startDistanceMove(0, 1, distanceCm, speed, timeoutMs);
+}
+
+bool MotoronDrive::update_distance_move()
+{
+    if (!distanceMoveActive_)
+    {
+        update_encoder_speed_control();
+        return distanceMoveComplete_;
+    }
+
+    if (!encoderSpeedControlReady_ || !encoderSpeedControlEnabled_)
+    {
+        finishDistanceMove(false);
+        return false;
+    }
+
+    encoders_.poll();
+
+    const uint32_t now = millis();
+    if (
+        distanceMoveTimeoutMs_ > 0 &&
+        now - distanceMoveStartedMs_ >= distanceMoveTimeoutMs_
+    )
+    {
+        finishDistanceMove(false);
+        return false;
+    }
+
+    int32_t counts[WHEEL_COUNT] = {0, 0, 0, 0};
+    encoders_.get_counts(
+        counts[FRONT_LEFT],
+        counts[FRONT_RIGHT],
+        counts[REAR_LEFT],
+        counts[REAR_RIGHT]
+    );
+
+    bool reached = true;
+    int32_t maxRemaining = 0;
+
+    for (uint8_t i = 0; i < WHEEL_COUNT; i++)
+    {
+        const int32_t target = absCount(distanceMoveTargetCounts_[i]);
+        const int32_t progress = absCount(counts[i]);
+        const int32_t remaining = target > progress ? target - progress : 0;
+
+        if (remaining > MOTOR_DISTANCE_MOVE_TOLERANCE_COUNTS)
+        {
+            reached = false;
+        }
+
+        if (remaining > maxRemaining)
+        {
+            maxRemaining = remaining;
+        }
+    }
+
+    if (reached)
+    {
+        finishDistanceMove(true);
+        return true;
+    }
+
+    const int16_t speed = scaledDistanceMoveSpeed(maxRemaining);
+    setTargetSpeeds(
+        distanceMoveTargetCounts_[FRONT_LEFT] < 0 ? -speed : speed,
+        distanceMoveTargetCounts_[FRONT_RIGHT] < 0 ? -speed : speed,
+        distanceMoveTargetCounts_[REAR_LEFT] < 0 ? -speed : speed,
+        distanceMoveTargetCounts_[REAR_RIGHT] < 0 ? -speed : speed
+    );
+    applyTargetSpeeds();
+
+    return false;
+}
+
+bool MotoronDrive::distance_move_active() const
+{
+    return distanceMoveActive_;
+}
+
+bool MotoronDrive::distance_move_complete() const
+{
+    return distanceMoveComplete_;
+}
+
+void MotoronDrive::cancel_distance_move()
+{
+    if (distanceMoveActive_ || distanceMoveComplete_)
+    {
+        finishDistanceMove(false);
+    }
+}
+
 void MotoronDrive::drive(int16_t vx, int16_t vy, int16_t w)
 {
+    cancel_distance_move();
+
     int32_t frontLeft = static_cast<int32_t>(vx) - vy - w;
     int32_t frontRight = static_cast<int32_t>(vx) + vy + w;
     int32_t rearLeft = static_cast<int32_t>(vx) + vy - w;
@@ -663,6 +982,8 @@ void MotoronDrive::stop()
 
 void MotoronDrive::stop_all()
 {
+    distanceMoveActive_ = false;
+    distanceMoveComplete_ = false;
     setTargetSpeeds(0, 0, 0, 0);
     resetEncoderSpeedControlState();
     writeWheelOutputs(0, 0, 0, 0, true);
@@ -709,6 +1030,7 @@ void MotoronDrive::raw_front(
     bool immediate
 )
 {
+    cancel_distance_move();
     encoderSpeedControlEnabled_ = false;
     resetEncoderSpeedControlState();
 
@@ -721,6 +1043,7 @@ void MotoronDrive::raw_front(
 
 void MotoronDrive::raw_rear(int16_t motor1, int16_t motor2, bool immediate)
 {
+    cancel_distance_move();
     encoderSpeedControlEnabled_ = false;
     resetEncoderSpeedControlState();
 
@@ -737,6 +1060,7 @@ void MotoronDrive::raw_front_motor(
     bool immediate
 )
 {
+    cancel_distance_move();
     encoderSpeedControlEnabled_ = false;
     resetEncoderSpeedControlState();
 
@@ -769,6 +1093,7 @@ void MotoronDrive::raw_rear_motor(
     bool immediate
 )
 {
+    cancel_distance_move();
     encoderSpeedControlEnabled_ = false;
     resetEncoderSpeedControlState();
 

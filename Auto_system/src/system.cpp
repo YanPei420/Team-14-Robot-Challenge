@@ -55,8 +55,12 @@ constexpr uint32_t ARENA_TIME_LIMIT_MS = 4UL * 60UL * 1000UL;
 
 constexpr uint32_t SERVER_REQUEST_RETRY_MS = 1000;
 constexpr uint32_t SOIL_QUERY_TIMEOUT_MS = 2500;
-constexpr uint32_t ALIGN_SEARCH_MS = 500;
-constexpr uint32_t FINE_ADJUST_MS = 700;
+constexpr uint32_t ALIGN_SEARCH_TIMEOUT_MS = 2000;
+constexpr uint16_t ALIGN_IR_MIN_VALUE = 10;
+constexpr uint16_t ALIGN_IR_MAX_VALUE = 30;
+constexpr uint8_t ALIGN_IR_SENSOR_INDEX = IR_SENSOR_COUNT / 2;
+constexpr float FINE_ADJUST_DISTANCE_CM = 2.0f;
+constexpr uint32_t FINE_ADJUST_TIMEOUT_MS = 1500;
 constexpr uint32_t PLANT_VERIFY_MS = 300;
 constexpr uint32_t RFID_COOLDOWN_MS = 2000;
 
@@ -155,6 +159,7 @@ bool soilFertile = false;
 bool soilAlreadyPlanted = false;
 bool missionCompleteSent = false;
 bool rfidDetectedThisLoop = false;
+bool fineAdjustMoveStarted = false;
 
 uint8_t seedsPlanted = 0;
 
@@ -350,6 +355,13 @@ bool doorOpenStable()
 bool frontObstacleBlocked()
 {
     return frontDistanceInRange(OBSTACLE_DISTANCE_CM);
+}
+
+bool plantIrAligned(uint16_t& value)
+{
+    lineSensors.update();
+    value = lineSensors.getValue(ALIGN_IR_SENSOR_INDEX);
+    return value >= ALIGN_IR_MIN_VALUE && value <= ALIGN_IR_MAX_VALUE;
 }
 
 bool extractValue(
@@ -976,6 +988,7 @@ void resetMission()
     soilResponseReceived = false;
     soilFertile = false;
     soilAlreadyPlanted = false;
+    fineAdjustMoveStarted = false;
     pendingTagId[0] = '\0';
     lastRfidUid[0] = '\0';
     initializeGridMap();
@@ -1037,6 +1050,23 @@ void setState(RunState next)
         soilFertile = false;
         soilAlreadyPlanted = false;
         sendIsFertile();
+    }
+    else if (state == RunState::FineAdjust)
+    {
+        fineAdjustMoveStarted = robot.start_forward_cm(
+            FINE_ADJUST_DISTANCE_CM,
+            FINE_ADJUST_SPEED,
+            FINE_ADJUST_TIMEOUT_MS
+        );
+
+        Serial.print("[align] forward ");
+        Serial.print(FINE_ADJUST_DISTANCE_CM);
+        Serial.println("cm");
+
+        if (!fineAdjustMoveStarted)
+        {
+            Serial.println("[align] failed to start fine adjust move");
+        }
     }
     else if (state == RunState::PlantOpen)
     {
@@ -1859,17 +1889,42 @@ void updateState()
 
         case RunState::AlignSearch:
             stopRobot();
-            if (stateElapsed(ALIGN_SEARCH_MS))
             {
-                setState(RunState::FineAdjust);
+                uint16_t alignIrValue = 0;
+                if (plantIrAligned(alignIrValue))
+                {
+                    Serial.print("[align] IR");
+                    Serial.print(ALIGN_IR_SENSOR_INDEX);
+                    Serial.print("=");
+                    Serial.println(alignIrValue);
+                    setState(RunState::FineAdjust);
+                }
+                else if (stateElapsed(ALIGN_SEARCH_TIMEOUT_MS))
+                {
+                    Serial.println("[align] IR alignment timeout");
+                    pendingTagId[0] = '\0';
+                    setState(RunState::GridDrive);
+                }
             }
             break;
 
         case RunState::FineAdjust:
-            robot.forward(FINE_ADJUST_SPEED);
-            if (stateElapsed(FINE_ADJUST_MS))
+            if (!fineAdjustMoveStarted)
+            {
+                pendingTagId[0] = '\0';
+                setState(RunState::GridDrive);
+                break;
+            }
+
+            if (robot.update_distance_move())
             {
                 setState(RunState::PlantOpen);
+            }
+            else if (!robot.distance_move_active())
+            {
+                Serial.println("[align] fine adjust move failed");
+                pendingTagId[0] = '\0';
+                setState(RunState::GridDrive);
             }
             break;
 
