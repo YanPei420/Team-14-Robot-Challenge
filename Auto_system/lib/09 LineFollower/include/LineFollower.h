@@ -58,10 +58,15 @@ public:
     void update();
     void update(int16_t speed);
     void setLogOutput(Stream* output);
+    void setIrKp(float kp);
+    void setIrKd(float kd);
+    void setIrPd(float kp, float kd);
 
     bool readLineError(int16_t& error, uint16_t& contrast);
     bool readLineError(int16_t& error);
     bool hasLine() const;
+    float irKp() const;
+    float irKd() const;
     int16_t lastError() const;
     int16_t lastTurn() const;
     int16_t lastIrTurn() const;
