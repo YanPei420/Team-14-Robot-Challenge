@@ -29,6 +29,7 @@ namespace
 constexpr uint32_t SERIAL_BAUD = 115200;
 constexpr uint32_t STATUS_INTERVAL_MS = 500;
 constexpr uint32_t LIDAR_FRESH_MS = 200;
+constexpr uint32_t REVIVE_LED_MS = 3000;
 
 constexpr int16_t LINE_SPEED = 220;
 constexpr int16_t GRID_SPEED = 210;
@@ -147,6 +148,10 @@ RunState state = RunState::Idle;
 bool motorReady = false;
 bool encoderControlReady = false;
 bool remoteSafetyEnabled = false;
+bool systemKillLatched = false;
+bool lastPhysicalKillPressed = false;
+bool lastReviveButtonPressed = false;
+bool lastNetworkKillPressed = false;
 bool startRequested = false;
 bool remoteReturnRequested = false;
 bool remoteStrandedRequested = false;
@@ -176,6 +181,7 @@ int16_t manualSpeed = MANUAL_SPEED_DEFAULT;
 uint32_t lastHeartbeatMs = 0;
 uint32_t lastStatusMs = 0;
 uint32_t lastRegisterMs = 0;
+uint32_t reviveLedUntilMs = 0;
 uint32_t stateStartedMs = 0;
 uint32_t arenaStartedMs = 0;
 uint32_t doorNearSinceMs = 0;
@@ -190,6 +196,7 @@ char lastRfidUid[40] = {0};
 
 bool safetyAllowed();
 bool heartbeatOk();
+void toggleSystemKill(const char* source);
 
 const char* stateName(RunState value)
 {
@@ -257,7 +264,7 @@ void printSerialHelp()
     Serial.println("Serial commands:");
     Serial.println("  S - start autonomous mission");
     Serial.println("  R - request return to base");
-    Serial.println("  X - disable remote safety and stop");
+    Serial.println("  X - toggle system kill latch");
     Serial.println("  M - enter manual control");
     Serial.println("  P - leave manual control and stop in Idle");
     Serial.println("  W/B/A/D - manual forward/back/left/right");
@@ -880,7 +887,9 @@ void sendStatus(bool force = false)
     Serial.print(" encoder=");
     Serial.print(encoderControlReady ? "ok" : "fail");
     Serial.print(" kill=");
-    Serial.print(killSwitch.isSafe() ? "safe" : "triggered");
+    Serial.print(systemKillLatched ? "latched" : "running");
+    Serial.print(" physical=");
+    Serial.print(killSwitch.isSafe() ? "released" : "pressed");
     Serial.print(" heartbeat=");
     Serial.print(heartbeatOk() ? "ok" : "missing");
     Serial.print(" lidarF=");
@@ -1112,22 +1121,47 @@ bool heartbeatOk()
         && millis() - lastHeartbeatMs <= WIFI_HEARTBEAT_TIMEOUT_MS;
 }
 
+void stopEntireSystem()
+{
+    manualCommand = ManualCommand::Stop;
+    startRequested = false;
+    stopRobot();
+    planter.stop();
+}
+
+void toggleSystemKill(const char* source)
+{
+    systemKillLatched = !systemKillLatched;
+
+    Serial.print("[kill] ");
+    Serial.print(source);
+    Serial.print(" toggled system kill -> ");
+    Serial.println(systemKillLatched ? "STOPPED" : "RUNNING");
+
+    if (systemKillLatched)
+    {
+        stopEntireSystem();
+    }
+}
+
 bool safetyAllowed()
 {
     return motorReady
         && encoderControlReady
-        && killSwitch.isSafe()
+        && !systemKillLatched
         && heartbeatOk();
 }
 
 bool manualControlAllowed()
 {
-    return motorReady && killSwitch.isSafe();
+    return motorReady
+        && !systemKillLatched;
 }
 
 bool planterTestAllowed()
 {
-    return motorReady && killSwitch.isSafe();
+    return motorReady
+        && !systemKillLatched;
 }
 
 bool localControlAllowed()
@@ -1354,11 +1388,17 @@ void handleRemotePayload(
     {
         if (tokenTrue(message, "enable="))
         {
+            lastNetworkKillPressed = false;
             remoteSafetyEnabled = true;
             lastHeartbeatMs = millis();
         }
         else if (tokenFalse(message, "enable="))
         {
+            if (!lastNetworkKillPressed)
+            {
+                toggleSystemKill("network");
+            }
+            lastNetworkKillPressed = true;
             remoteSafetyEnabled = false;
             stopRobot();
         }
@@ -1374,12 +1414,12 @@ void handleRemotePayload(
     if (
         messageTypeIs(message, "stop") ||
         messageTypeIs(message, "emergency") ||
-        messageTypeIs(message, "disable")
+        messageTypeIs(message, "disable") ||
+        messageTypeIs(message, "kill")
     )
     {
-        remoteSafetyEnabled = false;
+        toggleSystemKill("network");
         startRequested = false;
-        stopRobot();
         return;
     }
 
@@ -1539,9 +1579,7 @@ void pollSerialCommands()
         }
         else if (command == 'x' || command == 'X')
         {
-            remoteSafetyEnabled = false;
-            stopRobot();
-            Serial.println("[serial] safety disabled");
+            toggleSystemKill("serial");
         }
     }
 }
@@ -1550,6 +1588,21 @@ void updateInputs()
 {
     killSwitch.update();
     reviveButton.update();
+
+    const bool physicalKillPressed = killSwitch.isTriggered();
+    if (physicalKillPressed && !lastPhysicalKillPressed)
+    {
+        toggleSystemKill("physical");
+    }
+    lastPhysicalKillPressed = physicalKillPressed;
+
+    const bool reviveButtonPressed = reviveButton.isPressed();
+    if (reviveButtonPressed && !lastReviveButtonPressed)
+    {
+        reviveLedUntilMs = millis() + REVIVE_LED_MS;
+    }
+    lastReviveButtonPressed = reviveButtonPressed;
+
     lidarLeft.update();
     lidarRight.update();
     lidarFront.update();
@@ -1567,15 +1620,15 @@ void updateInputs()
 
 void updateStatusLed()
 {
-    if ((!safetyAllowed() && !localControlAllowed()) || state == RunState::Stranded)
+    if (millis() < reviveLedUntilMs)
     {
-        statusLed.showEmergency();
+        statusLed.showButtonPressed();
         return;
     }
 
-    if (reviveButton.isPressed())
+    if (systemKillLatched || state == RunState::Stranded)
     {
-        statusLed.showButtonPressed();
+        statusLed.showEmergency();
         return;
     }
 
@@ -2038,6 +2091,11 @@ void systemSetup()
     rfid.begin();
     killSwitch.begin();
     reviveButton.begin();
+    killSwitch.update();
+    reviveButton.update();
+    lastPhysicalKillPressed = killSwitch.isTriggered();
+    lastReviveButtonPressed = reviveButton.isPressed();
+    systemKillLatched = lastPhysicalKillPressed;
     statusLed.begin();
     initializeGridMap();
 
@@ -2085,6 +2143,14 @@ void systemLoop()
     pollSerialCommands();
     sendRegister();
     updateInputs();
+
+    if (systemKillLatched)
+    {
+        stopEntireSystem();
+        updateStatusLed();
+        sendStatus();
+        return;
+    }
 
     const bool autonomousAllowed = safetyAllowed();
     const bool localAllowed = localControlAllowed();

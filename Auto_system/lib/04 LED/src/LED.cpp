@@ -56,6 +56,17 @@ void LED::allOff()
 
 void LED::showNormal()
 {
+    writeGreen(LOW);
+
+    if (millis() - lastFlashTime >= redFlashIntervalMs)
+    {
+        lastFlashTime = millis();
+        writeRed(!redState);
+    }
+}
+
+void LED::showButtonPressed()
+{
     setBoth(
         LOW,
         HIGH
@@ -64,25 +75,14 @@ void LED::showNormal()
     lastFlashTime = millis();
 }
 
-void LED::showButtonPressed()
+void LED::showEmergency()
 {
     setBoth(
         HIGH,
-        HIGH
+        LOW
     );
 
     lastFlashTime = millis();
-}
-
-void LED::showEmergency()
-{
-    writeGreen(LOW);
-
-    if (millis() - lastFlashTime >= redFlashIntervalMs)
-    {
-        lastFlashTime = millis();
-        writeRed(!redState);
-    }
 }
 
 void LED::writeRed(bool state)

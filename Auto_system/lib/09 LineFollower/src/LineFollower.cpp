@@ -260,9 +260,41 @@ void LineFollower::setLogOutput(Stream* output)
     config.logOutput = output;
 }
 
+void LineFollower::setIrKp(float kp)
+{
+    config.irKp = kp;
+    haveLastError = false;
+    lastDerivativeValue = 0.0f;
+}
+
+void LineFollower::setIrKd(float kd)
+{
+    config.irKd = kd;
+    haveLastError = false;
+    lastDerivativeValue = 0.0f;
+}
+
+void LineFollower::setIrPd(float kp, float kd)
+{
+    config.irKp = kp;
+    config.irKd = kd;
+    haveLastError = false;
+    lastDerivativeValue = 0.0f;
+}
+
 bool LineFollower::hasLine() const
 {
     return lineVisible;
+}
+
+float LineFollower::irKp() const
+{
+    return config.irKp;
+}
+
+float LineFollower::irKd() const
+{
+    return config.irKd;
 }
 
 int16_t LineFollower::lastError() const

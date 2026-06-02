@@ -313,6 +313,20 @@ test/encoder_test.cpp
 test/wifi.cpp
 ```
 
+`test/line_follow.cpp` supports real-time serial PD tuning while the follower
+runs:
+
+```text
+kp=0.08
+kd=0.004
+pd 0.07 0.004
+show
+help
+```
+
+Commands are applied when the serial monitor sends a newline. A leading `!`
+is also accepted, for example `!kp=0.08`.
+
 Debugging tools are available in `tool/`, including the navigation visualizer.
 
 The viva evidence log, calibration values, current limitations, and final-day checklist are in `docs/testing_calibration.md`.
