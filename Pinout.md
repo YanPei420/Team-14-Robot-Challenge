@@ -47,14 +47,16 @@
 
 | Pin | Motor | Description |
 |:----|:----------|:------------|
-| D2 | | |
-| D3 | | |
-| D4 | | |
-| D5 | | |
-| D6 | | |
-| D7 | | |
-| D8 | | |
-| D9 | | |
+| D2 | Encodder Pin 1 | |
+| D3 | Encodder Pin 2 | |
+| D4 | Encodder Pin 1 | |
+| D5 | Encodder Pin 2 | |
+| D6 | Encodder Pin 1 | |
+| D7 | Encodder Pin 2 | |
+| D8 | Encodder Pin 1 | |
+| D9 | Encodder Pin 2 | |
+| GND | Encoder GND | |
+| 3.3V | Encoder Power | |
 
 | Pin | Micromotor | Description |
 |:----|:----------|:------------|
